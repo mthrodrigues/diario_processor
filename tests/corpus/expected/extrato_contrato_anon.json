@@ -1,0 +1,19 @@
+{
+  "blocos": [
+    {
+      "numero_bloco": 1,
+      "tipo": "extrato",
+      "relevancia": "alta",
+      "prioritario": true,
+      "processo": "1.234/2026",
+      "contrato": "014/2026",
+      "contratante": "Fundo Municipal de Saúde",
+      "fornecedor": "Empresa Alfa Serviços Ltda",
+      "cnpj": null,
+      "valores": [120000.0],
+      "valor_principal": 120000.0,
+      "vigencia": "12 (doze) meses",
+      "objeto": "Prestação de serviços de manutenção preventiva dos equipamentos"
+    }
+  ]
+}
