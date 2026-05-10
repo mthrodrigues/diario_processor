@@ -8,6 +8,9 @@ __pycache__/
 venv/
 .env/
 
+# Environment
+.env
+
 # SQLite
 *.db
 
@@ -28,3 +31,13 @@ temp/
 # OS
 .DS_Store
 Thumbs.db
+
+# Pytest cache
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# Coverage
+.coverage
+htmlcov/

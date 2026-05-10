@@ -3,110 +3,108 @@ from extractor import extrair_texto
 from parser import segmentar_publicacoes
 from processor import extrair_metadados_bloco
 
-from database import (
-    criar_tabela,
-    salvar_publicacao,
-    ja_processado
-)
+from infra.db.connection import postgres_connection
+from infra.db.repositories.publicacao_repository import PublicacaoRepository
 
 
 def run():
     print("Iniciando Diário Processor...\n")
 
-    # 🗄️ Garante que a tabela existe
-    criar_tabela()
+    with postgres_connection() as conn:
 
-    # 🔍 Busca PDFs
-    pdfs = listar_pdfs()
+        repository = PublicacaoRepository(conn)
 
-    print(f"Total de PDFs encontrados: {len(pdfs)}\n")
+        # 🔍 Busca PDFs
+        pdfs = listar_pdfs()
 
-    novos = 0
-    ignorados = 0
+        print(f"Total de PDFs encontrados: {len(pdfs)}\n")
 
-    for pdf in pdfs:
+        novos = 0
+        ignorados = 0
 
-        try:
+        for pdf in pdfs:
 
-            # ⏭️ Pula PDFs já processados
-            if ja_processado(pdf):
-                ignorados += 1
-                continue
+            try:
 
-            diario_id = extrair_diario_id(pdf)
+                # ⏭️ Pula PDFs já processados
+                if repository.ja_processado(pdf):
+                    ignorados += 1
+                    continue
 
-            print(f"\n================================================")
-            print(f"Processando diário {diario_id}")
-            print(f"Arquivo: {pdf}")
-            print(f"================================================")
+                diario_id = extrair_diario_id(pdf)
 
-            # 📄 Extrai texto completo
-            texto = extrair_texto(pdf)
+                print(f"\n================================================")
+                print(f"Processando diário {diario_id}")
+                print(f"Arquivo: {pdf}")
+                print(f"================================================")
 
-            # ✂️ Segmenta em publicações
-            blocos = segmentar_publicacoes(texto)
+                # 📄 Extrai texto completo
+                texto = extrair_texto(pdf)
 
-            print(f"\nBlocos encontrados: {len(blocos)}")
+                # ✂️ Segmenta em publicações
+                blocos = segmentar_publicacoes(texto)
 
-            # 🔍 Processa bloco a bloco
-            for i, bloco in enumerate(blocos, start=1):
+                print(f"\nBlocos encontrados: {len(blocos)}")
 
-                print(f"\n--- BLOCO {i} ---")
+                # 🔍 Processa bloco a bloco
+                for i, bloco in enumerate(blocos, start=1):
 
-                metadados = extrair_metadados_bloco(bloco)
+                    print(f"\n--- BLOCO {i} ---")
 
-                print(f"Tipo identificado: {metadados['tipo']}")
-                print(f"Relevância documental: {metadados['relevancia']}")
-                print(f"Prioritário para inteligência contratual: {metadados['prioritario']}")
-                print(f"Processo identificado: {metadados['processo']}")
-                print(f"Contrato identificado: {metadados['contrato']}")
-                print(f"Fornecedor identificado: {metadados['fornecedor']}")
-                print(f"Fornecedor normalizado: {metadados['fornecedor_normalizado']}")
-                print(f"Contratante identificado: {metadados['contratante']}")
-                print(f"Contratante normalizado: {metadados['contratante_normalizado']}")
-                print(f"Vigência identificada: {metadados['vigencia']}")
-                print(f"Objeto identificado: {metadados['objeto']}")
-                print(f"CNPJ identificado: {metadados['cnpj']}")
+                    metadados = extrair_metadados_bloco(bloco)
 
-                if metadados["valores"]:
-                    print(f"Valores encontrados: {metadados['valores'][:5]}")
-                else:
-                    print("Nenhum valor encontrado.")
+                    print(f"Tipo identificado: {metadados['tipo']}")
+                    print(f"Relevância documental: {metadados['relevancia']}")
+                    print(f"Prioritário para inteligência contratual: {metadados['prioritario']}")
+                    print(f"Processo identificado: {metadados['processo']}")
+                    print(f"Contrato identificado: {metadados['contrato']}")
+                    print(f"Fornecedor identificado: {metadados['fornecedor']}")
+                    print(f"Fornecedor normalizado: {metadados['fornecedor_normalizado']}")
+                    print(f"Contratante identificado: {metadados['contratante']}")
+                    print(f"Contratante normalizado: {metadados['contratante_normalizado']}")
+                    print(f"Vigência identificada: {metadados['vigencia']}")
+                    print(f"Objeto identificado: {metadados['objeto']}")
+                    print(f"CNPJ identificado: {metadados['cnpj']}")
 
-                print(f"Valor principal identificado: {metadados['valor_principal']}")
+                    if metadados["valores"]:
+                        print(f"Valores encontrados: {metadados['valores'][:5]}")
+                    else:
+                        print("Nenhum valor encontrado.")
 
-                # 💾 Salva CADA BLOCO
-                salvar_publicacao(
-                    diario_id,
-                    i,
-                    pdf,
-                    bloco,
-                    metadados["tipo"],
-                    metadados["processo"],
-                    metadados["contrato"],
-                    metadados["contratante"],
-                    metadados["fornecedor"],
-                    metadados["cnpj"],
-                    metadados["valores"],
-                    metadados["valor_principal"],
-                    metadados["relevancia"],
-                    metadados["prioritario"],
-                    metadados["vigencia"],
-                    metadados["objeto"],
-                    metadados["fornecedor_normalizado"],
-                    metadados["contratante_normalizado"]
-                )
+                    print(f"Valor principal identificado: {metadados['valor_principal']}")
 
-            novos += 1
+                    # 💾 Salva CADA BLOCO no PostgreSQL
+                    repository.salvar_publicacao(
+                        diario_id,
+                        i,
+                        pdf,
+                        bloco,
+                        metadados["tipo"],
+                        metadados["processo"],
+                        metadados["contrato"],
+                        metadados["contratante"],
+                        metadados["fornecedor"],
+                        metadados["cnpj"],
+                        metadados["valores"],
+                        metadados["valor_principal"],
+                        metadados["relevancia"],
+                        metadados["prioritario"],
+                        metadados["vigencia"],
+                        metadados["objeto"],
+                        metadados["fornecedor_normalizado"],
+                        metadados["contratante_normalizado"]
+                    )
 
-        except Exception as e:
-            print(f"Erro ao processar {pdf}: {e}")
+                novos += 1
 
-    print("\n========================================")
-    print("Resumo da execução:")
-    print(f"Novos processados: {novos}")
-    print(f"Ignorados (já existentes): {ignorados}")
-    print("========================================")
+            except Exception as e:
+                print(f"Erro ao processar {pdf}: {e}")
+
+        print("\n========================================")
+        print("Resumo da execução:")
+        print(f"Novos processados: {novos}")
+        print(f"Ignorados (já existentes): {ignorados}")
+        print("========================================")
 
 
 if __name__ == "__main__":
