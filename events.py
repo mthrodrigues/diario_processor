@@ -1,5 +1,18 @@
 import re
 
+import ecosystem_imports  # noqa: F401
+
+from institutional_contracts.ontology.entity_types import (
+    COMPANY,
+    PERSON,
+    PUBLIC_AGENCY,
+)
+from institutional_contracts.ontology.event_types import (
+    APPOINTMENT,
+    EXONERATION,
+    PUBLIC_CONTRACT,
+)
+
 
 def extrair_nome(texto):
 
@@ -211,15 +224,15 @@ def extrair_eventos_bloco(
             contratante = metadados.get("contratante_normalizado")
 
             evento = {
-                "tipo_evento": "contratacao",
+                "tipo_evento": PUBLIC_CONTRACT,
 
                 "entidade_origem": {
-                    "tipo": "orgao",
+                    "tipo": PUBLIC_AGENCY,
                     "nome": contratante
                 },
 
                 "entidade_destino": {
-                    "tipo": "empresa",
+                    "tipo": COMPANY,
                     "nome": fornecedor
                 },
 
@@ -253,10 +266,10 @@ def extrair_eventos_bloco(
             orgao = extrair_orgao(subevento)
 
             evento = {
-                "tipo_evento": "nomeacao",
+                "tipo_evento": APPOINTMENT,
 
                 "agente": {
-                    "tipo": "pessoa",
+                    "tipo": PERSON,
                     "nome": agente
                 },
 
@@ -286,10 +299,10 @@ def extrair_eventos_bloco(
             orgao = extrair_orgao(subevento)
 
             evento = {
-                "tipo_evento": "exoneracao",
+                "tipo_evento": EXONERATION,
 
                 "agente": {
-                    "tipo": "pessoa",
+                    "tipo": PERSON,
                     "nome": agente
                 },
 
