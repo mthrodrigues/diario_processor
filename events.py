@@ -1,17 +1,16 @@
 import re
 
-import ecosystem_imports  # noqa: F401
+# =====================================================
+# TIPOS LOCAIS
+# =====================================================
 
-from institutional_contracts.ontology.entity_types import (
-    COMPANY,
-    PERSON,
-    PUBLIC_AGENCY,
-)
-from institutional_contracts.ontology.event_types import (
-    APPOINTMENT,
-    EXONERATION,
-    PUBLIC_CONTRACT,
-)
+COMPANY = "company"
+PERSON = "person"
+PUBLIC_AGENCY = "public_agency"
+
+APPOINTMENT = "appointment"
+EXONERATION = "exoneration"
+PUBLIC_CONTRACT = "public_contract"
 
 
 def extrair_nome(texto):
@@ -57,33 +56,13 @@ def extrair_agente_publico(texto):
 
     padroes = [
 
-        # =====================================================
-        # COM MATRÍCULA
-        # =====================================================
-
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?),\s*matr[ií]cula",
-
-        # =====================================================
-        # PARA EXERCER
-        # =====================================================
 
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para exercer",
 
-        # =====================================================
-        # PARA INTEGRAR
-        # =====================================================
-
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para integrar",
 
-        # =====================================================
-        # NOMEAR DIRETO
-        # =====================================================
-
         r"NOMEAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+para",
-
-        # =====================================================
-        # EXONERAR DIRETO
-        # =====================================================
 
         r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+do\s+Cargo",
     ]
@@ -104,7 +83,6 @@ def extrair_agente_publico(texto):
 
             nome = nome.strip(" ,.-")
 
-            # Evita lixo institucional
             if len(nome.split()) < 2:
                 continue
 

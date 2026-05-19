@@ -22,14 +22,8 @@ from infra.db.repositories.entity_repository import (
     EntityRepository
 )
 
-from events import extrair_eventos_bloco
-
 from infra.db.repositories.entity_relationship_repository import (
     EntityRelationshipRepository
-)
-
-from taxonomy.relation_resolver import (
-    resolver_relacao_evento
 )
 
 from infra.db.repositories.timeline_repository import (
@@ -40,26 +34,39 @@ from infra.db.repositories.institutional_event_outbox_repository import (
     InstitutionalEventOutboxRepository
 )
 
+from events import extrair_eventos_bloco
+
+from taxonomy.relation_resolver import (
+    resolver_relacao_evento
+)
+
 from canonical_event_builder import (
     build_institutional_event
 )
 
-import ecosystem_imports  # noqa: F401
+# =====================================================
+# ENTITY ROLES
+# =====================================================
 
-from institutional_contracts.ontology.entity_roles import (
-    CONTRACTING_ORG,
-    PUBLIC_AGENT,
-    SUPPLIER
-)
-from institutional_contracts.ontology.entity_types import (
-    COMPANY,
-    PERSON,
-    PUBLIC_AGENCY
-)
-from institutional_contracts.ontology.relationship_types import (
-    APPOINTED,
-    DISMISSED
-)
+CONTRACTING_ORG = "contracting_org"
+PUBLIC_AGENT = "public_agent"
+SUPPLIER = "supplier"
+
+# =====================================================
+# ENTITY TYPES
+# =====================================================
+
+COMPANY = "company"
+PERSON = "person"
+PUBLIC_AGENCY = "public_agency"
+
+# =====================================================
+# RELATION TYPES
+# =====================================================
+
+APPOINTED = "appointed"
+DISMISSED = "dismissed"
+
 
 def run():
 
@@ -72,15 +79,20 @@ def run():
         evento_repository = EventoRepository(conn)
 
         entity_repository = EntityRepository(conn)
+
         relationship_repository = (
             EntityRelationshipRepository(conn)
         )
-        timeline_repository = TimelineRepository(conn)
-        outbox_repository = InstitutionalEventOutboxRepository(conn)
 
-        # =====================================================
+        timeline_repository = TimelineRepository(conn)
+
+        outbox_repository = (
+            InstitutionalEventOutboxRepository(conn)
+        )
+
+        # =================================================
         # PDFs
-        # =====================================================
+        # =================================================
 
         pdfs = listar_pdfs()
 
@@ -89,9 +101,9 @@ def run():
         novos = 0
         ignorados = 0
 
-        # =====================================================
+        # =================================================
         # LOOP PDFs
-        # =====================================================
+        # =================================================
 
         for pdf in pdfs:
 
@@ -121,10 +133,12 @@ def run():
                 texto = extrair_texto(pdf)
 
                 # =============================================
-                # DATA CONTEXTUAL DO DIÁRIO
+                # DATA CONTEXTUAL
                 # =============================================
 
-                data_publicacao = extrair_data_publicacao(texto)
+                data_publicacao = (
+                    extrair_data_publicacao(texto)
+                )
 
                 print(
                     "DATA PUBLICACAO EXTRAIDA:",
@@ -143,11 +157,16 @@ def run():
                 # LOOP BLOCOS
                 # =============================================
 
-                for i, bloco in enumerate(blocos, start=1):
+                for i, bloco in enumerate(
+                    blocos,
+                    start=1
+                ):
 
                     print(f"\n--- BLOCO {i} ---")
 
-                    metadados = extrair_metadados_bloco(bloco)
+                    metadados = extrair_metadados_bloco(
+                        bloco
+                    )
 
                     # =========================================
                     # EVENTOS
@@ -181,21 +200,38 @@ def run():
                             )
                         )
 
-                        print("EVENTO SALVO:", evento_id)
-
-                        canonical_event = build_institutional_event(
-                            evento=evento,
-                            evento_id=evento_id,
-                            diario_id=diario_id,
-                            numero_bloco=i,
-                            texto_bloco=bloco,
-                            data_publicacao=data_publicacao
+                        print(
+                            "EVENTO SALVO:",
+                            evento_id
                         )
 
-                        if outbox_repository.publish(canonical_event):
+                        # =====================================
+                        # EVENTO CANÔNICO
+                        # =====================================
+
+                        canonical_event = (
+                            build_institutional_event(
+                                evento
+                            )
+                        )
+
+                        try:
+
+                            if canonical_event:
+
+                                outbox_repository.publish(
+                                    canonical_event
+                                )
+
+                                print(
+                                    "EVENTO CANONICO PUBLICADO"
+                                )
+
+                        except Exception as e:
+
                             print(
-                                "EVENTO CANONICO PUBLICADO:",
-                                canonical_event.source_reference
+                                "Erro ao publicar evento:",
+                                e
                             )
 
                         # =====================================
@@ -222,9 +258,9 @@ def run():
                                 PUBLIC_AGENT
                             )
 
-                            # =========================================
+                            # =================================
                             # RELAÇÃO PESSOA → ÓRGÃO
-                            # =========================================
+                            # =================================
 
                             orgao_nome = evento.get("orgao")
 
@@ -237,8 +273,12 @@ def run():
                                     )
                                 )
 
-                                tipo_relacao = resolver_relacao_evento(
-                                    evento.get("tipo_evento")
+                                tipo_relacao = (
+                                    resolver_relacao_evento(
+                                        evento.get(
+                                            "tipo_evento"
+                                        )
+                                    )
                                 )
 
                                 relationship_repository.criar_relacao(
@@ -249,12 +289,15 @@ def run():
                                     tipo_relacao,
 
                                     diario_id=diario_id,
-                                    data_publicacao=data_publicacao
+
+                                    data_publicacao=(
+                                        data_publicacao
+                                    )
                                 )
 
-                                # =========================================
+                                # =============================
                                 # TIMELINE
-                                # =========================================
+                                # =============================
 
                                 if tipo_relacao == APPOINTED:
 
@@ -308,8 +351,10 @@ def run():
                         # =====================================
 
                         empresa_nome = (
-                            evento.get("entidade_destino", {})
-                            .get("nome")
+                            evento.get(
+                                "entidade_destino",
+                                {}
+                            ).get("nome")
                         )
 
                         if empresa_nome:
@@ -331,7 +376,10 @@ def run():
                     # DEBUG METADADOS
                     # =========================================
 
-                    print(f"Tipo identificado: {metadados['tipo']}")
+                    print(
+                        f"Tipo identificado: "
+                        f"{metadados['tipo']}"
+                    )
 
                     print(
                         f"Relevância documental: "
@@ -339,7 +387,7 @@ def run():
                     )
 
                     print(
-                        f"Prioritário para inteligência contratual: "
+                        f"Prioritário: "
                         f"{metadados['prioritario']}"
                     )
 
@@ -397,7 +445,9 @@ def run():
 
                     else:
 
-                        print("Nenhum valor encontrado.")
+                        print(
+                            "Nenhum valor encontrado."
+                        )
 
                     print(
                         f"Valor principal identificado: "
@@ -409,36 +459,54 @@ def run():
                     # =========================================
 
                     repository.salvar_publicacao(
+
                         diario_id,
                         i,
                         pdf,
                         bloco,
+
                         metadados["tipo"],
                         metadados["processo"],
                         metadados["contrato"],
+
                         metadados["contratante"],
                         metadados["fornecedor"],
+
                         metadados["cnpj"],
                         metadados["valores"],
+
                         metadados["valor_principal"],
+
                         metadados["relevancia"],
                         metadados["prioritario"],
+
                         metadados["vigencia"],
                         metadados["objeto"],
-                        metadados["fornecedor_normalizado"],
-                        metadados["contratante_normalizado"]
+
+                        metadados[
+                            "fornecedor_normalizado"
+                        ],
+
+                        metadados[
+                            "contratante_normalizado"
+                        ]
                     )
 
                 novos += 1
 
             except Exception as e:
 
-                print(f"Erro ao processar {pdf}: {e}")
+                print(
+                    f"Erro ao processar {pdf}: {e}"
+                )
 
         print("\n========================================")
         print("Resumo da execução:")
         print(f"Novos processados: {novos}")
-        print(f"Ignorados (já existentes): {ignorados}")
+        print(
+            f"Ignorados (já existentes): "
+            f"{ignorados}"
+        )
         print("========================================")
 
 

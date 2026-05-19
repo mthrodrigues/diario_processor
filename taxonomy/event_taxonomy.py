@@ -1,23 +1,29 @@
-import ecosystem_imports  # noqa: F401
+# =====================================================
+# EVENT TYPES
+# =====================================================
 
-from institutional_contracts.ontology.event_types import (
-    APPOINTMENT,
-    BIDDING,
-    BIDDING_WAIVER,
-    CONTRACT_AMENDMENT,
-    DESIGNATION,
-    EXONERATION,
-    PUBLIC_CONTRACT,
-)
-from institutional_contracts.ontology.relationship_types import (
-    APPOINTED,
-    AUTHORIZED,
-    CONTRACTED,
-    DESIGNATED_TO,
-    DISMISSED,
-    PARTICIPATED_IN_CONTRACT,
-)
+APPOINTMENT = "appointment"
+BIDDING = "bidding"
+BIDDING_WAIVER = "bidding_waiver"
+CONTRACT_AMENDMENT = "contract_amendment"
+DESIGNATION = "designation"
+EXONERATION = "exoneration"
+PUBLIC_CONTRACT = "public_contract"
 
+# =====================================================
+# RELATION TYPES
+# =====================================================
+
+APPOINTED = "appointed"
+AUTHORIZED = "authorized"
+CONTRACTED = "contracted"
+DESIGNATED_TO = "designated_to"
+DISMISSED = "dismissed"
+PARTICIPATED_IN_CONTRACT = "participated_in_contract"
+
+# =====================================================
+# EVENT -> RELATION MAP
+# =====================================================
 
 EVENT_RELATION_TYPES = {
     APPOINTMENT: APPOINTED,
@@ -28,7 +34,10 @@ EVENT_RELATION_TYPES = {
     BIDDING_WAIVER: AUTHORIZED,
     BIDDING: PARTICIPATED_IN_CONTRACT,
 
-    # Legacy input compatibility. Producers should emit canonical values.
+    # =================================================
+    # LEGACY COMPATIBILITY
+    # =================================================
+
     "nomeacao": APPOINTED,
     "exoneracao": DISMISSED,
     "designacao": DESIGNATED_TO,

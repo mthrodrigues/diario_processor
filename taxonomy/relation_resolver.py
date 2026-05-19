@@ -2,12 +2,19 @@ from taxonomy.event_taxonomy import (
     EVENT_RELATION_TYPES
 )
 
-import ecosystem_imports  # noqa: F401
+# =====================================================
+# RELATION TYPES
+# =====================================================
 
-from institutional_contracts.ontology.relationship_types import (
-    RELATED_TO,
-    normalize_relationship_type,
-)
+RELATED_TO = "related_to"
+
+
+def normalize_relationship_type(value):
+
+    if not value:
+        return RELATED_TO
+
+    return str(value).strip().lower()
 
 
 def resolver_relacao_evento(tipo_evento):
@@ -17,7 +24,12 @@ def resolver_relacao_evento(tipo_evento):
 
     relationship_type = EVENT_RELATION_TYPES.get(
         tipo_evento.lower(),
-        EVENT_RELATION_TYPES.get(tipo_evento, RELATED_TO)
+        EVENT_RELATION_TYPES.get(
+            tipo_evento,
+            RELATED_TO
+        )
     )
 
-    return normalize_relationship_type(relationship_type)
+    return normalize_relationship_type(
+        relationship_type
+    )
