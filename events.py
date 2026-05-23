@@ -1,17 +1,18 @@
 import re
 
-# =====================================================
-# TIPOS LOCAIS
-# =====================================================
+from taxonomy.entity_taxonomy import (
 
-COMPANY = "company"
-PERSON = "person"
-PUBLIC_AGENCY = "public_agency"
+    EMPRESA,
+    PESSOA,
+    ORGAO_PUBLICO
+)
 
-APPOINTMENT = "appointment"
-EXONERATION = "exoneration"
-PUBLIC_CONTRACT = "public_contract"
+from taxonomy.event_taxonomy import (
 
+    NOMEACAO,
+    EXONERACAO,
+    CONTRATACAO
+)
 
 def extrair_nome(texto):
 
@@ -202,15 +203,15 @@ def extrair_eventos_bloco(
             contratante = metadados.get("contratante_normalizado")
 
             evento = {
-                "tipo_evento": PUBLIC_CONTRACT,
+                "tipo_evento": CONTRATACAO,
 
                 "entidade_origem": {
-                    "tipo": PUBLIC_AGENCY,
+                    "tipo": ORGAO_PUBLICO,
                     "nome": contratante
                 },
 
                 "entidade_destino": {
-                    "tipo": COMPANY,
+                    "tipo": EMPRESA,
                     "nome": fornecedor
                 },
 
@@ -244,10 +245,10 @@ def extrair_eventos_bloco(
             orgao = extrair_orgao(subevento)
 
             evento = {
-                "tipo_evento": APPOINTMENT,
+                "tipo_evento": NOMEACAO,
 
                 "agente": {
-                    "tipo": PERSON,
+                    "tipo": PESSOA,
                     "nome": agente
                 },
 
@@ -277,10 +278,10 @@ def extrair_eventos_bloco(
             orgao = extrair_orgao(subevento)
 
             evento = {
-                "tipo_evento": EXONERATION,
+                "tipo_evento": EXONERACAO,
 
                 "agente": {
-                    "tipo": PERSON,
+                    "tipo": PESSOA,
                     "nome": agente
                 },
 

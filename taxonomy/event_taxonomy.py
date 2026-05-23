@@ -1,48 +1,88 @@
 # =====================================================
-# EVENT TYPES
+# TIPOS DE EVENTOS
 # =====================================================
 
-APPOINTMENT = "appointment"
-BIDDING = "bidding"
-BIDDING_WAIVER = "bidding_waiver"
-CONTRACT_AMENDMENT = "contract_amendment"
-DESIGNATION = "designation"
-EXONERATION = "exoneration"
-PUBLIC_CONTRACT = "public_contract"
+NOMEACAO = "NOMEACAO"
+
+EXONERACAO = "EXONERACAO"
+
+DESIGNACAO = "DESIGNACAO"
+
+CONTRATACAO = "CONTRATACAO"
+
+ADITIVO = "ADITIVO"
+
+DISPENSA = "DISPENSA"
+
+LICITACAO = "LICITACAO"
+
 
 # =====================================================
-# RELATION TYPES
+# TIPOS DE RELACOES
 # =====================================================
 
-APPOINTED = "appointed"
-AUTHORIZED = "authorized"
-CONTRACTED = "contracted"
-DESIGNATED_TO = "designated_to"
-DISMISSED = "dismissed"
-PARTICIPATED_IN_CONTRACT = "participated_in_contract"
+NOMEADO_EM = "NOMEADO_EM"
+
+EXONERADO_DE = "EXONERADO_DE"
+
+DESIGNADO_PARA = "DESIGNADO_PARA"
+
+CONTRATOU = "CONTRATOU"
+
+AUTORIZOU = "AUTORIZOU"
+
+PARTICIPOU_LICITACAO = "PARTICIPOU_LICITACAO"
+
 
 # =====================================================
-# EVENT -> RELATION MAP
+# MAPA EVENTO -> RELACAO
 # =====================================================
 
 EVENT_RELATION_TYPES = {
-    APPOINTMENT: APPOINTED,
-    EXONERATION: DISMISSED,
-    DESIGNATION: DESIGNATED_TO,
-    PUBLIC_CONTRACT: CONTRACTED,
-    CONTRACT_AMENDMENT: CONTRACTED,
-    BIDDING_WAIVER: AUTHORIZED,
-    BIDDING: PARTICIPATED_IN_CONTRACT,
+
+    NOMEACAO:
+        NOMEADO_EM,
+
+    EXONERACAO:
+        EXONERADO_DE,
+
+    DESIGNACAO:
+        DESIGNADO_PARA,
+
+    CONTRATACAO:
+        CONTRATOU,
+
+    ADITIVO:
+        CONTRATOU,
+
+    DISPENSA:
+        AUTORIZOU,
+
+    LICITACAO:
+        PARTICIPOU_LICITACAO,
 
     # =================================================
-    # LEGACY COMPATIBILITY
+    # COMPATIBILIDADE LEGADA
     # =================================================
 
-    "nomeacao": APPOINTED,
-    "exoneracao": DISMISSED,
-    "designacao": DESIGNATED_TO,
-    "contratacao": CONTRACTED,
-    "aditivo": CONTRACTED,
-    "dispensa": AUTHORIZED,
-    "licitacao": PARTICIPATED_IN_CONTRACT,
+    "nomeacao":
+        NOMEADO_EM,
+
+    "exoneracao":
+        EXONERADO_DE,
+
+    "designacao":
+        DESIGNADO_PARA,
+
+    "contratacao":
+        CONTRATOU,
+
+    "aditivo":
+        CONTRATOU,
+
+    "dispensa":
+        AUTORIZOU,
+
+    "licitacao":
+        PARTICIPOU_LICITACAO,
 }

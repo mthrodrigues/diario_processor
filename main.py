@@ -4,6 +4,17 @@ from scanner import (
     extrair_data_publicacao
 )
 
+from taxonomy.entity_taxonomy import (
+
+    PESSOA,
+    EMPRESA,
+    ORGAO_PUBLICO,
+
+    AGENTE_PUBLICO,
+    FORNECEDOR,
+    ORGAO_CONTRATANTE
+)
+
 from extractor import extrair_texto
 from parser import segmentar_publicacoes
 from processor import extrair_metadados_bloco
@@ -40,33 +51,14 @@ from taxonomy.relation_resolver import (
     resolver_relacao_evento
 )
 
+from taxonomy.event_taxonomy import (
+    NOMEADO_EM,
+    EXONERADO_DE
+)
+
 from canonical_event_builder import (
     build_institutional_event
 )
-
-# =====================================================
-# ENTITY ROLES
-# =====================================================
-
-CONTRACTING_ORG = "contracting_org"
-PUBLIC_AGENT = "public_agent"
-SUPPLIER = "supplier"
-
-# =====================================================
-# ENTITY TYPES
-# =====================================================
-
-COMPANY = "company"
-PERSON = "person"
-PUBLIC_AGENCY = "public_agency"
-
-# =====================================================
-# RELATION TYPES
-# =====================================================
-
-APPOINTED = "appointed"
-DISMISSED = "dismissed"
-
 
 def run():
 
@@ -247,7 +239,7 @@ def run():
 
                             entidade_pessoa_id = (
                                 entity_repository.obter_ou_criar(
-                                    PERSON,
+                                    PESSOA,
                                     agente_nome
                                 )
                             )
@@ -255,7 +247,7 @@ def run():
                             evento_repository.relacionar_entidade(
                                 evento_id,
                                 entidade_pessoa_id,
-                                PUBLIC_AGENT
+                                AGENTE_PUBLICO
                             )
 
                             # =================================
@@ -268,7 +260,7 @@ def run():
 
                                 entidade_orgao_id = (
                                     entity_repository.obter_ou_criar(
-                                        PUBLIC_AGENCY,
+                                        ORGAO_PUBLICO,
                                         orgao_nome
                                     )
                                 )
@@ -299,7 +291,7 @@ def run():
                                 # TIMELINE
                                 # =============================
 
-                                if tipo_relacao == APPOINTED:
+                                if tipo_relacao == NOMEADO_EM:
 
                                     timeline_repository.abrir_vinculo(
 
@@ -313,7 +305,7 @@ def run():
                                         evento_id
                                     )
 
-                                elif tipo_relacao == DISMISSED:
+                                elif tipo_relacao == EXONERADO_DE:
 
                                     timeline_repository.fechar_vinculo(
 
@@ -335,7 +327,7 @@ def run():
 
                             entidade_id = (
                                 entity_repository.obter_ou_criar(
-                                    PUBLIC_AGENCY,
+                                    ORGAO_PUBLICO,
                                     orgao_nome
                                 )
                             )
@@ -343,7 +335,7 @@ def run():
                             evento_repository.relacionar_entidade(
                                 evento_id,
                                 entidade_id,
-                                CONTRACTING_ORG
+                                ORGAO_CONTRATANTE
                             )
 
                         # =====================================
@@ -361,7 +353,7 @@ def run():
 
                             entidade_id = (
                                 entity_repository.obter_ou_criar(
-                                    COMPANY,
+                                    EMPRESA,
                                     empresa_nome
                                 )
                             )
@@ -369,7 +361,7 @@ def run():
                             evento_repository.relacionar_entidade(
                                 evento_id,
                                 entidade_id,
-                                SUPPLIER
+                                FORNECEDOR
                             )
 
                     # =========================================

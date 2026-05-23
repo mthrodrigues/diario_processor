@@ -4,7 +4,7 @@ class TimelineRepository:
 
         self.conn = conn
 
-        self.table = f"{schema}.entity_timelines"
+        self.table = f"{schema}.timelines_entidades"
 
     # =====================================================
     # ABRIR VÍNCULO

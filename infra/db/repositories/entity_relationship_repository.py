@@ -4,7 +4,7 @@ class EntityRelationshipRepository:
 
         self.conn = conn
 
-        self.table = f"{schema}.entity_relationships"
+        self.table = f"{schema}.relacionamentos_entidades"
 
     # =====================================================
     # CRIAR RELAÇÃO

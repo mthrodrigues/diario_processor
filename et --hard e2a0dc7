@@ -1,0 +1,15 @@
+[33m937a3f9[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m feat: add institutional event extraction
+[33mb82a4b6[m feat: add contextual confidence profiles
+[33m10e7f4c[m feat: add semantic confidence analytics
+[33m7cf0a84[m feat: add semantic confidence scoring engine
+[33m860081f[m feat: add institutional entity alias resolution
+[33mf8a62fe[m feat: formalize institutional events with dataclass
+[33m816b8dd[m feat: hardening operacional do diario_processor
+[33me2a0dc7[m feat: corrigindo implementações indevidas
+[33mcb01865[m Merge branch 'main' of https://github.com/mthrodrigues/diario_processor
+[33m5137c48[m feat: correcao
+[33m6c51a05[m feat: implement institutional cognitive contracts and distributed event fabric
+[33m8e4b8d9[m feat: evolucao na ferramenta para inteligência institucional estruturada
+[33me7d3a19[m Migrate diario_processor to institutional PostgreSQL architecture
+[33maddaea4[m !
+[33mcd3987f[m Initial architecture for diario_processor
