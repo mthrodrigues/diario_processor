@@ -52,6 +52,10 @@ from taxonomy.relation_resolver import (
 )
 
 from taxonomy.event_taxonomy import (
+
+    NOMEACAO,
+    EXONERACAO,
+
     NOMEADO_EM,
     EXONERADO_DE
 )
@@ -181,6 +185,8 @@ def run():
 
                         print(evento)
 
+                        tipo_evento = evento.get("tipo_evento")
+
                         # =====================================
                         # SALVA EVENTO
                         # =====================================
@@ -287,35 +293,35 @@ def run():
                                     )
                                 )
 
-                                # =============================
-                                # TIMELINE
-                                # =============================
+                        # =========================================
+                        # TIMELINE FUNCIONAL
+                        # =========================================
 
-                                if tipo_relacao == NOMEADO_EM:
+                        if tipo_evento == NOMEACAO:
 
-                                    timeline_repository.abrir_vinculo(
+                            timeline_repository.abrir_vinculo(
 
-                                        entidade_pessoa_id,
-                                        entidade_orgao_id,
+                                entidade_pessoa_id,
+                                entidade_orgao_id,
 
-                                        "LOTACAO",
+                                "LOTACAO",
 
-                                        data_publicacao,
+                                data_publicacao,
 
-                                        evento_id
-                                    )
+                                evento_id
+                            )
 
-                                elif tipo_relacao == EXONERADO_DE:
+                        elif tipo_evento == EXONERACAO:
 
-                                    timeline_repository.fechar_vinculo(
+                            timeline_repository.fechar_vinculo(
 
-                                        entidade_pessoa_id,
-                                        entidade_orgao_id,
+                                entidade_pessoa_id,
+                                entidade_orgao_id,
 
-                                        data_publicacao,
+                                data_publicacao,
 
-                                        evento_id
-                                    )
+                                evento_id
+                            )
 
                         # =====================================
                         # ÓRGÃO
@@ -488,9 +494,13 @@ def run():
 
             except Exception as e:
 
+                import traceback
+
                 print(
                     f"Erro ao processar {pdf}: {e}"
                 )
+
+                traceback.print_exc()
 
         print("\n========================================")
         print("Resumo da execução:")

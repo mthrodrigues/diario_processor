@@ -14,6 +14,11 @@ from taxonomy.event_taxonomy import (
     CONTRATACAO
 )
 
+
+# =====================================================
+# EXTRAÇÃO DE NOME
+# =====================================================
+
 def extrair_nome(texto):
 
     padroes = [
@@ -23,9 +28,14 @@ def extrair_nome(texto):
 
     for padrao in padroes:
 
-        match = re.search(padrao, texto, re.IGNORECASE)
+        match = re.search(
+            padrao,
+            texto,
+            re.IGNORECASE
+        )
 
         if match:
+
             nome = match.group(1).strip()
 
             nome = re.split(
@@ -38,6 +48,10 @@ def extrair_nome(texto):
 
     return None
 
+
+# =====================================================
+# LIMPEZA DE NOME
+# =====================================================
 
 def limpar_nome(nome):
 
@@ -52,6 +66,10 @@ def limpar_nome(nome):
 
     return nome.strip(" ,.-")
 
+
+# =====================================================
+# EXTRAÇÃO DE AGENTE PÚBLICO
+# =====================================================
 
 def extrair_agente_publico(texto):
 
@@ -84,6 +102,17 @@ def extrair_agente_publico(texto):
 
             nome = nome.strip(" ,.-")
 
+            # =============================================
+            # REMOVE PREFIXOS HUMANOS
+            # =============================================
+
+            nome = re.sub(
+                r"^(o servidor|a servidora|os servidores|as servidoras)\s+",
+                "",
+                nome,
+                flags=re.IGNORECASE
+            ).strip()
+
             if len(nome.split()) < 2:
                 continue
 
@@ -97,6 +126,10 @@ def extrair_agente_publico(texto):
 
     return None
 
+
+# =====================================================
+# EXTRAÇÃO DE CARGO
+# =====================================================
 
 def extrair_cargo(texto):
 
@@ -128,19 +161,109 @@ def extrair_cargo(texto):
     return None
 
 
-def extrair_orgao(texto):
+# =====================================================
+# LIMPEZA INSTITUCIONAL
+# =====================================================
 
-    match = re.search(
-        r"(SECRETARIA MUNICIPAL [A-ZÀ-Ú\s]+)",
-        texto,
-        re.IGNORECASE
+def limpar_texto_institucional(texto):
+
+    if not texto:
+        return ""
+
+    padroes_remover = [
+
+        r"Para verificar a autenticidade.*",
+        r"Documento assinado digitalmente.*",
+        r"ICP-Brasil.*",
+        r"DIÁRIO OFICIAL ELETRÔNICO.*",
+        r"Município de Teresópolis.*",
+        r"Estado do Rio de Janeiro.*",
+        r"PODER EXECUTIVO MUNICIPAL.*",
+        r"Criado pela Lei Municipal.*",
+        r"Ano XI - Edição.*",
+        r"Chave de verificação.*",
+        r"https://atos\.teresopolis.*",
+    ]
+
+    texto_limpo = texto
+
+    for padrao in padroes_remover:
+
+        texto_limpo = re.sub(
+            padrao,
+            "",
+            texto_limpo,
+            flags=re.IGNORECASE
+        )
+
+    texto_limpo = texto_limpo.replace("\n", " ")
+
+    texto_limpo = re.sub(
+        r"\s+",
+        " ",
+        texto_limpo
     )
 
-    if match:
-        return match.group(1).strip(" ,.-")
+    return texto_limpo.strip()
+
+
+# =====================================================
+# EXTRAÇÃO DE ÓRGÃO
+# =====================================================
+
+def extrair_orgao(texto):
+
+    if not texto:
+        return None
+
+    texto = limpar_texto_institucional(texto)
+
+    padroes = [
+
+        r"(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir|$)",
+
+        r"na\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir|$)",
+
+        r"do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir|$)",
+
+        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.|$)",
+
+        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.|$)",
+    ]
+
+    for padrao in padroes:
+
+        match = re.search(
+            padrao,
+            texto,
+            re.IGNORECASE
+        )
+
+        if match:
+
+            orgao = match.group(1)
+
+            orgao = re.sub(r"\s+", " ", orgao)
+
+            orgao = orgao.strip(" ,.-")
+
+            if "EMPRESA" in orgao.upper():
+                continue
+
+            if "LTDA" in orgao.upper():
+                continue
+
+            if "CNPJ" in orgao.upper():
+                continue
+
+            return orgao
 
     return None
 
+
+# =====================================================
+# SEGMENTAÇÃO DE SUBEVENTOS
+# =====================================================
 
 def segmentar_sub_eventos(texto):
 
@@ -156,7 +279,11 @@ def segmentar_sub_eventos(texto):
 
     for parte in partes:
 
-        if re.search(r"PORTARIA\s+GP\s+N[º°]", parte, re.IGNORECASE):
+        if re.search(
+            r"PORTARIA\s+GP\s+N[º°]",
+            parte,
+            re.IGNORECASE
+        ):
 
             if atual.strip():
                 subeventos.append(atual.strip())
@@ -164,6 +291,7 @@ def segmentar_sub_eventos(texto):
             atual = parte
 
         else:
+
             atual += " " + parte
 
     if atual.strip():
@@ -171,6 +299,10 @@ def segmentar_sub_eventos(texto):
 
     return subeventos
 
+
+# =====================================================
+# EXTRAÇÃO DE EVENTOS DO BLOCO
+# =====================================================
 
 def extrair_eventos_bloco(
     metadados,
@@ -189,6 +321,10 @@ def extrair_eventos_bloco(
     print(len(subeventos))
 
     for subevento in subeventos:
+
+        evento = None
+
+        subevento = subevento[:2000]
 
         subevento_upper = subevento.upper()
 
@@ -230,6 +366,8 @@ def extrair_eventos_bloco(
                 }
             }
 
+            print("EVENTO GERADO:", evento)
+
             eventos.append(evento)
 
         # =====================================================
@@ -262,6 +400,8 @@ def extrair_eventos_bloco(
                     "texto": subevento[:1000]
                 }
             }
+
+            print("EVENTO GERADO:", evento)
 
             eventos.append(evento)
 
