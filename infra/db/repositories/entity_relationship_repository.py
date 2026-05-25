@@ -22,6 +22,8 @@ class EntityRelationshipRepository:
         diario_id=None,
         data_publicacao=None,
 
+        evento_id=None
+
     ):
 
         with self.conn.cursor() as cursor:
@@ -36,10 +38,12 @@ class EntityRelationshipRepository:
                     tipo_relacao,
 
                     diario_id,
-                    data_publicacao
+                    data_publicacao,
+                    evento_id
 
                 ) VALUES (
 
+                    %s,
                     %s,
                     %s,
                     %s,
@@ -55,6 +59,8 @@ class EntityRelationshipRepository:
                     tipo_relacao,
 
                     diario_id,
-                    data_publicacao
+                    data_publicacao,
+                    
+                    evento_id
                 )
             )

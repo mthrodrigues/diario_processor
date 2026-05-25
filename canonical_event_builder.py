@@ -1,40 +1,106 @@
-def build_institutional_event(evento):
+def build_institutional_event(
+    evento,
+    evento_id=None
+):
 
     """
-    Builder simplificado e desacoplado.
+    Builder canônico institucional.
 
-    Mantém compatibilidade com o restante
-    do pipeline sem depender de ontology,
-    graph ou institutional_contracts.
+    Objetivos:
+
+    - desacoplamento do schema interno
+    - estabilidade contratual
+    - versionamento
+    - interoperabilidade futura
+    - correlation readiness
+    - explainability
     """
 
     if not evento:
         return None
 
     return {
-        "tipo_evento": evento.get("tipo_evento"),
 
-        "agente": evento.get("agente"),
+        # ==========================================
+        # VERSIONAMENTO
+        # ==========================================
 
-        "entidade_origem": evento.get(
-            "entidade_origem"
-        ),
+        "schema_version": "1.0",
 
-        "entidade_destino": evento.get(
-            "entidade_destino"
-        ),
+        # ==========================================
+        # IDENTIDADE GLOBAL
+        # ==========================================
 
-        "cargo": evento.get("cargo"),
+        "event_uuid": evento.get("uuid"),
 
-        "orgao": evento.get("orgao"),
+        # ==========================================
+        # ORIGEM
+        # ==========================================
 
-        "contrato": evento.get("contrato"),
+        "source": {
 
-        "processo": evento.get("processo"),
+            "system": "DIARIO_PROCESSOR",
 
-        "valor": evento.get("valor"),
+            "record_id": (
+                str(evento_id)
+                if evento_id
+                else None
+            ),
 
-        "objeto": evento.get("objeto"),
+            "diario_id": evento.get(
+                "evidencia",
+                {}
+            ).get("diario_id")
+        },
 
-        "evidencia": evento.get("evidencia"),
+        # ==========================================
+        # EVENTO
+        # ==========================================
+
+        "event": {
+
+            "tipo_evento": evento.get(
+                "tipo_evento"
+            ),
+
+            "agente": evento.get(
+                "agente"
+            ),
+
+            "entidade_origem": evento.get(
+                "entidade_origem"
+            ),
+
+            "entidade_destino": evento.get(
+                "entidade_destino"
+            ),
+
+            "cargo": evento.get(
+                "cargo"
+            ),
+
+            "orgao": evento.get(
+                "orgao"
+            ),
+
+            "contrato": evento.get(
+                "contrato"
+            ),
+
+            "processo": evento.get(
+                "processo"
+            ),
+
+            "valor": evento.get(
+                "valor"
+            ),
+
+            "objeto": evento.get(
+                "objeto"
+            ),
+
+            "evidencia": evento.get(
+                "evidencia"
+            ),
+        }
     }

@@ -209,7 +209,8 @@ def run():
 
                         canonical_event = (
                             build_institutional_event(
-                                evento
+                                evento,
+                                evento_id
                             )
                         )
 
@@ -290,7 +291,9 @@ def run():
 
                                     data_publicacao=(
                                         data_publicacao
-                                    )
+                                    ),
+
+                                    evento_id=evento_id
                                 )
 
                         # =========================================
