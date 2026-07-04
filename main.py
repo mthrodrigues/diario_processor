@@ -495,7 +495,11 @@ def run():
 
                 novos += 1
 
+                conn.commit()
+
             except Exception as e:
+
+                conn.rollback()
 
                 import traceback
 
