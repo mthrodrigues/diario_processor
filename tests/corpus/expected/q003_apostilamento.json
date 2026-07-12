@@ -1,0 +1,19 @@
+{
+    "blocos": [
+        {
+            "numero_bloco": 1,
+            "tipo": "apostilamento",
+            "relevancia": "baixa",
+            "prioritario": false,
+            "processo": "5.663/2025",
+            "contrato": "001.023.2025",
+            "contratante": "O Município de Teresópolis através da Secretaria Municipal de Segurança, Ordem Pública e Mobilidade",
+            "fornecedor": "Prime Consultoria e Assessoria Empresarial Ltda",
+            "cnpj": null,
+            "valores": [],
+            "valor_principal": null,
+            "vigencia": null,
+            "objeto": "A troca de dotação orçamentária, por parte da administração"
+        }
+    ]
+}

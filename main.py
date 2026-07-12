@@ -97,6 +97,8 @@ def run():
         novos = 0
         ignorados = 0
 
+        REPROCESSAR_TUDO = True
+
         # =================================================
         # LOOP PDFs
         # =================================================
@@ -109,7 +111,10 @@ def run():
                 # INCREMENTALIDADE
                 # =============================================
 
-                if repository.ja_processado(pdf):
+                if (
+                    not REPROCESSAR_TUDO
+                    and repository.ja_processado(pdf)
+                ):
 
                     ignorados += 1
 

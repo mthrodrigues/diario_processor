@@ -32,6 +32,8 @@ INICIOS_PUBLICACAO = [
     r'EXTRATO\b',
     r'AVISO\b',
     r'PORTARIA\b',
+    r'\d+\s*[º°]\s+TERMO\s+DE\s+APOSTILAMENTO\b',
+    r'\d+\s*[º°]\s+TERMO\s+ADITIVO\b',
     r'TERMO\b',
     r'PREG[ÃA]O\b',
     r'EDITAL\b',
@@ -261,8 +263,31 @@ def identificar_tipo(texto):
     inicio = "\n".join(linhas[:4])
 
     tipos_por_inicio = [
+
+        # Termos numerados
+        (
+            r'^\d+\s*[º°]\s+TERMO\s+DE\s+APOSTILAMENTO\b',
+            "apostilamento"
+        ),
+
+        (
+            r'^\d+\s*[º°]\s+TERMO\s+ADITIVO\b',
+            "aditivo"
+        ),
+
+        # Termos sem numeração
+        (
+            r'^TERMO\s+DE\s+APOSTILAMENTO\b',
+            "apostilamento"
+        ),
+
+        (
+            r'^TERMO\s+ADITIVO\b',
+            "aditivo"
+        ),
+
+        # Demais documentos
         (r'^CONTRATO\b', "contrato"),
-        (r'^TERMO\s+ADITIVO\b', "aditivo"),
         (r'^TERMO\b', "termo"),
         (r'^AVISO\b', "aviso"),
         (r'^EXTRATO\b', "extrato"),
@@ -275,7 +300,7 @@ def identificar_tipo(texto):
         (r'^ADJUDICA[ÇC][ÃA]O\b', "adjudicacao"),
         (r'^EDITAL\b', "edital"),
     ]
-
+    
     for padrao, tipo in tipos_por_inicio:
         if re.search(padrao, inicio):
             return tipo
@@ -286,11 +311,23 @@ def identificar_tipo(texto):
     if "TERMO ADITIVO" in texto_upper or "ADITIVO" in inicio:
         return "aditivo"
 
-    if "CONTRATO" in texto_upper:
+    # =====================================================
+    # FALLBACKS DOCUMENTAIS
+    # Utilizados apenas quando o cabeçalho não foi suficiente.
+    # Devem ser específicos para evitar superclassificação.
+    # =====================================================
+
+    if re.search(r'\bTERMO\s+ADITIVO\b', texto_upper):
+        return "aditivo"
+
+    if re.search(r'\bEXTRATO\s+DE\s+CONTRATO\b', texto_upper):
+        return "extrato"
+
+    if re.search(r'\bCONTRATO\s+ADMINISTRATIVO\b', texto_upper):
         return "contrato"
 
-    if "EXTRATO" in texto_upper:
-        return "extrato"
+    if re.search(r'\bCONTRATO\s+N[°ºO\.]?', texto_upper):
+        return "contrato"
 
     if "EMPENHO" in texto_upper:
         return "empenho"
@@ -330,10 +367,12 @@ def extrair_processo(texto):
     12345/2026
     """
 
-    numero_processo = r'(\d{1,6}(?:\.\d{3})*/\d{4})'
+    numero_processo = r'(\d{1,6}(?:\.\d{3})*/\d{2,4})'
     padroes_contexto = [
         rf'\bPROCESSO\s*(?:ADMINISTRATIVO|LICITAT[ÓO]RIO)?\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
         rf'\bPROC(?:ESSO)?\.\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
+        rf'\bPROTOCOLO\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
+        rf'\bMEMORANDO\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
     ]
 
     for padrao in padroes_contexto:
@@ -435,7 +474,7 @@ def extrair_contrato(texto):
     """
 
     padroes = [
-        r'\bCONTRATO\s*(?:ADMINISTRATIVO\s*)?N[°ºO\.]?\s*([\d\.\-\/]+)',
+        r'\bCONTRATO(?:\s+ADMINISTRATIVO|\s+DE\s+.{1,80}?)?\s*N[°ºO\.]?\s*([\dA-Z\.\-\/]+)',
         r'\bEXTRATO\s+DE\s+CONTRATO\s*N[°ºO\.]?\s*([\d\.\-\/]+)',
         r'\bTERMO\s+DE\s+.{3,120}?\s+N[°ºO\.]?\s*([\d\.\-\/]+)',
     ]

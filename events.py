@@ -11,7 +11,8 @@ from taxonomy.event_taxonomy import (
 
     NOMEACAO,
     EXONERACAO,
-    CONTRATACAO
+    CONTRATACAO,
+    DESIGNACAO_FISCAL
 )
 
 
@@ -135,11 +136,17 @@ def extrair_cargo(texto):
 
     padroes = [
 
-        r"Cargo em Comissão de\s+([A-ZÀ-Ú\s]+?),\s*Símbolo",
+        # Cargo em comissão
+        r"Cargo em Comissão de\s+(.+?)(?=,\s*Símbolo|,\s*lotad|,\s*com efeitos|\.|,|$)",
 
-        r"cargo\s+de\s+([A-ZÀ-Ú\s]+?)(?:,|\.)",
+        # Cargo comum
+        r"cargo\s+de\s+(.+?)(?=,\s*lotad|,\s*com efeitos|\.|,|$)",
 
-        r"função\s+de\s+([A-ZÀ-Ú\s]+?)(?:,|\.)",
+        # Função
+        r"função\s+de\s+(.+?)(?=,\s*lotad|,\s*com efeitos|\.|,|$)",
+
+        # Exercício de função
+        r"para exercer\s+o\s+Cargo\s+em\s+Comissão\s+de\s+(.+?)(?=,\s*Símbolo|,\s*lotad|,\s*com efeitos|\.|,|$)",
     ]
 
     for padrao in padroes:
@@ -154,12 +161,20 @@ def extrair_cargo(texto):
 
             cargo = match.group(1)
 
-            cargo = re.sub(r"\s+", " ", cargo)
+            cargo = re.sub(
+                r"\s+",
+                " ",
+                cargo
+            )
 
-            return cargo.strip(" ,.-")
+            cargo = cargo.strip(" ,.-")
+
+            if len(cargo) < 3:
+                continue
+
+            return cargo
 
     return None
-
 
 # =====================================================
 # LIMPEZA INSTITUCIONAL
@@ -220,15 +235,15 @@ def extrair_orgao(texto):
 
     padroes = [
 
-        r"(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir|$)",
+        r"(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
-        r"na\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir|$)",
+        r"na\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
-        r"do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir|$)",
+        r"do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
-        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.|$)",
+        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
 
-        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.|$)",
+        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
     ]
 
     for padrao in padroes:
@@ -332,7 +347,11 @@ def extrair_eventos_bloco(
         # EVENTO: CONTRATAÇÃO
         # =====================================================
 
-        if tipo in ["contrato", "extrato"]:
+        if (
+            tipo in ["contrato", "extrato"]
+            and metadados.get("fornecedor_normalizado")
+            and metadados.get("contratante_normalizado")
+        ):
 
             fornecedor = metadados.get("fornecedor_normalizado")
 
@@ -368,7 +387,57 @@ def extrair_eventos_bloco(
 
             print("EVENTO GERADO:", evento)
 
+            if not evento["entidade_origem"]["nome"]:
+                continue
+
+            if not evento["entidade_destino"]["nome"]:
+                continue
+
             eventos.append(evento)
+
+        
+        # =====================================================
+        # EVENTO: DESIGNAÇÃO DE FISCAL
+        # =====================================================
+
+        if (
+            "FISCALIZAÇÃO DO CONTRATO" in subevento_upper
+            or "ACOMPANHAMENTO E FISCALIZAÇÃO" in subevento_upper
+        ):
+
+            agente = extrair_agente_publico(subevento)
+
+            orgao = extrair_orgao(subevento)
+
+            instrumento = re.search(
+                r"(?:CONTRATO|TERMO DE COLABORAÇÃO|TERMO DE INCENTIVO|CONVÊNIO|ACORDO DE COOPERAÇÃO)\s*N?[º°]?\s*([0-9\./\-]+)",
+                subevento,
+                re.IGNORECASE
+            )
+
+            evento = {
+                "tipo_evento": DESIGNACAO_FISCAL,
+
+                "agente": {
+                    "tipo": PESSOA,
+                    "nome": agente
+                },
+
+                "orgao": orgao,
+
+                "contrato": metadados.get("contrato"),
+
+                "evidencia": {
+                    "diario_id": diario_id,
+                    "numero_bloco": numero_bloco,
+                    "texto": subevento[:1000]
+                }
+            }
+
+            eventos.append(evento)
+
+            continue
+
 
         # =====================================================
         # EVENTO: NOMEAÇÃO

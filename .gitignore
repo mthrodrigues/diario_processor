@@ -41,3 +41,24 @@ Thumbs.db
 # Coverage
 .coverage
 htmlcov/
+
+# IDEs
+.idea/
+
+# Windows
+Desktop.ini
+
+# Python
+.cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# PostgreSQL
+*.dump
+backup/
+
+# Python local
+.python-version
