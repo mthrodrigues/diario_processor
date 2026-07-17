@@ -118,6 +118,29 @@ def _linha_continua_titulo(linha_anterior):
     linha = linha_anterior.strip().upper()
     return linha.endswith((" E", " DE", " DO", " DA", " DOS", " DAS", " AO", " AOS"))
 
+def _linha_continua_frase(linha_anterior):
+    """
+    Indica que a linha anterior termina uma frase incompleta,
+    portanto a próxima linha não pode iniciar uma nova publicação.
+    """
+
+    if not linha_anterior:
+        return False
+
+    linha = linha_anterior.strip().lower()
+
+    return linha.endswith((
+        " no",
+        " na",
+        " nos",
+        " nas",
+        " do",
+        " da",
+        " dos",
+        " das",
+        " de",
+        " e",
+    ))
 
 def _eh_inicio_publicacao(linha, linha_anterior=None):
     linha_limpa = linha.strip()
@@ -130,11 +153,40 @@ def _eh_inicio_publicacao(linha, linha_anterior=None):
     if linha_upper.startswith(LINHAS_BOILERPLATE):
         return False
 
+    #
+    # Continuação de título
+    #
     if _linha_continua_titulo(linha_anterior):
         return False
 
-    return any(re.match(padrao, linha_upper) for padrao in INICIOS_PUBLICACAO)
+    #
+    # Continuação de frase
+    #
+    if _linha_continua_frase(linha_anterior):
+        return False
 
+    #
+    # Cabeçalhos de tabelas de contratos
+    #
+    if re.match(r"CONTRATO\s+N[º°O.]?:", linha_upper):
+        return False
+
+    if re.match(r"CONTRATO\s+N[º°O.]?\s*:", linha_upper):
+        return False
+
+    for padrao in INICIOS_PUBLICACAO:
+
+        if re.match(padrao, linha_upper):
+
+            print("=" * 80)
+            print("MATCH DE INÍCIO")
+            print(f"PADRÃO : {padrao}")
+            print(f"LINHA  : {linha_limpa}")
+            print("=" * 80)
+
+            return True
+
+    return False
 
 def _inicio_recente_de_publicacao(bloco_atual):
     linhas = [linha for linha in bloco_atual if linha.strip()]
@@ -446,8 +498,26 @@ def segmentar_publicacoes(texto):
 
         linha_anterior = linhas[indice - 1] if indice > 0 else None
 
+        inicio = _eh_inicio_publicacao(linha, linha_anterior)
+        recente = _inicio_recente_de_publicacao(bloco_atual)
+
+        if inicio:
+            print("=" * 80)
+            print(f"Linha...............: {indice}")
+            print(f"Início detectado....: {linha.strip()}")
+            print(f"Início recente......: {recente}")
+            print(f"Linhas no bloco.....: {len(bloco_atual)}")
+
+            if bloco_atual:
+                print(f"Última linha bloco..: {bloco_atual[-1].strip()}")
+            else:
+                print("Última linha bloco..: <bloco vazio>")
+
         # inicia novo bloco
-        if _eh_inicio_publicacao(linha, linha_anterior) and not _inicio_recente_de_publicacao(bloco_atual):
+        if inicio and not recente:
+
+            print(">>> NOVO BLOCO ABERTO <<<")
+            print()
 
             # salva bloco anterior
             if bloco_atual:

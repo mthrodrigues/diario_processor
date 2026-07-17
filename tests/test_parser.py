@@ -4,6 +4,13 @@ from parser import (
     extrair_processo,
     identificar_tipo,
     extrair_contrato,
+    extrair_fornecedor,
+    extrair_contratante,
+    extrair_cnpj,
+    extrair_valor_principal,
+    extrair_objeto,
+    extrair_vigencia,
+    segmentar_publicacoes,
 )
 
 
@@ -184,3 +191,348 @@ def test_contrato_locacao():
     """
 
     assert extrair_contrato(texto) == "022.CL.05.2022"
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE FORNECEDOR
+# =====================================================
+
+def test_fornecedor_contratada():
+
+    texto = """
+    CONTRATADA: EMPRESA XPTO LTDA
+
+    CNPJ: 12.345.678/0001-99
+    """
+
+    assert extrair_fornecedor(texto) == "EMPRESA XPTO LTDA"
+
+def test_fornecedor_ignora_orgao_publico():
+
+    texto = """
+    CONTRATADA: SECRETARIA MUNICIPAL DE SAÚDE
+
+    CNPJ: 12.345.678/0001-99
+    """
+
+    assert extrair_fornecedor(texto) is None
+
+def test_fornecedor_para_no_campo_objeto():
+
+    texto = """
+    CONTRATADA: EMPRESA XPTO LTDA
+
+    OBJETO: Prestação de serviços de limpeza urbana.
+    """
+
+    assert extrair_fornecedor(texto) == "EMPRESA XPTO LTDA"
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE CONTRATANTE
+# =====================================================
+
+def test_contratante():
+
+    texto = """
+    CONTRATANTE: Prefeitura Municipal de Teresópolis
+
+    CNPJ: 29.138.369/0001-47
+    """
+
+    assert (
+        extrair_contratante(texto)
+        == "Prefeitura Municipal de Teresópolis"
+    )
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE CONTRATANTE
+# =====================================================
+
+def test_contratante():
+
+    texto = """
+    CONTRATANTE: Prefeitura Municipal de Teresópolis
+
+    CNPJ: 29.138.369/0001-47
+    """
+
+    assert (
+        extrair_contratante(texto)
+        == "Prefeitura Municipal de Teresópolis"
+    )
+
+
+def test_contratante_para_no_campo_cnpj():
+
+    texto = """
+    CONTRATANTE: Prefeitura Municipal de Teresópolis
+
+    CNPJ: 29.138.369/0001-47
+    """
+
+    assert (
+        extrair_contratante(texto)
+        == "Prefeitura Municipal de Teresópolis"
+    )
+
+
+def test_sem_contratante():
+
+    texto = """
+    Contrato Administrativo nº 021/2026
+
+    Objeto: Prestação de serviços.
+    """
+
+    assert extrair_contratante(texto) is None
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE CNPJ
+# =====================================================
+
+def test_cnpj():
+
+    texto = """
+    CNPJ: 12.345.678/0001-99
+    """
+
+    assert extrair_cnpj(texto) == "12.345.678/0001-99"
+
+
+def test_sem_cnpj():
+
+    texto = """
+    Contrato Administrativo nº 021/2026
+    """
+
+    assert extrair_cnpj(texto) is None
+
+
+def test_primeiro_cnpj():
+
+    texto = """
+    CONTRATANTE
+
+    CNPJ: 11.111.111/0001-11
+
+    CONTRATADA
+
+    CNPJ: 22.222.222/0001-22
+    """
+
+    assert extrair_cnpj(texto) == "11.111.111/0001-11"
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE VALOR PRINCIPAL
+# =====================================================
+
+def test_valor_global():
+
+    texto = """
+    VALOR GLOBAL: R$ 150.000,00
+    """
+
+    assert extrair_valor_principal(texto) == 150000.00
+
+
+def test_valor_total():
+
+    texto = """
+    VALOR TOTAL: R$ 89.500,00
+    """
+
+    assert extrair_valor_principal(texto) == 89500.00
+
+
+def test_valor_contratado():
+
+    texto = """
+    Valor contratado: R$ 1.250,50
+    """
+
+    assert extrair_valor_principal(texto) == 1250.50
+
+def test_valor_unico_sem_contexto():
+
+    texto = """
+    O presente contrato possui o valor de
+    R$ 12.500,00.
+    """
+
+    assert extrair_valor_principal(texto) == 12500.00
+
+
+def test_dois_valores_sem_contexto_retorna_none():
+
+    texto = """
+    A empresa apresentou proposta de
+
+    R$ 10.000,00
+
+    Após negociação foi apresentado
+
+    R$ 12.000,00
+    """
+
+    assert extrair_valor_principal(texto) is None
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE OBJETO
+# =====================================================
+
+def test_objeto():
+
+    texto = """
+    OBJETO:
+    Prestação de serviços especializados em tecnologia.
+
+    VALOR GLOBAL:
+    R$ 100.000,00
+    """
+
+    assert (
+    extrair_objeto(texto)
+    == "Prestação de serviços especializados em tecnologia"
+)
+    
+# =====================================================
+# TESTES - EXTRAÇÃO DE VIGÊNCIA
+# =====================================================
+
+def test_vigencia():
+
+    texto = """
+    VIGÊNCIA:
+    12 meses.
+
+    PROCESSO:
+    12345/2026
+    """
+
+    assert extrair_vigencia(texto) == "12 meses"
+
+# =====================================================
+# TESTES - EXTRAÇÃO DE VIGÊNCIA
+# =====================================================
+
+def test_vigencia():
+
+    texto = """
+    VIGÊNCIA:
+    12 meses.
+
+    PROCESSO:
+    12345/2026
+    """
+
+    assert extrair_vigencia(texto) == "12 meses"
+
+
+def test_prazo():
+
+    texto = """
+    PRAZO:
+    180 dias.
+
+    VALOR GLOBAL:
+    R$ 100.000,00
+    """
+
+    assert extrair_vigencia(texto) == "180 dias"
+
+
+def test_prazo_contratual():
+
+    texto = """
+    PRAZO CONTRATUAL:
+    24 meses.
+
+    CONTRATANTE:
+    Prefeitura Municipal
+    """
+
+    assert extrair_vigencia(texto) == "24 meses"
+
+
+def test_sem_vigencia():
+
+    texto = """
+    Contrato Administrativo nº 021/2026
+
+    Objeto: Prestação de serviços.
+    """
+
+    assert extrair_vigencia(texto) is None
+
+# =====================================================
+# TESTES - SEGMENTAÇÃO DE PUBLICAÇÕES
+# =====================================================
+
+def test_segmenta_dois_contratos():
+
+    texto = """
+    CONTRATO Nº 001/2026
+
+    Objeto: Prestação de serviços especializados.
+
+    Processo Administrativo nº 12345/2026.
+
+    Valor Global: R$ 100.000,00.
+
+    Vigência: 12 meses.
+
+    CONTRATO Nº 002/2026
+
+    Objeto: Aquisição de materiais de informática.
+
+    Processo Administrativo nº 54321/2026.
+
+    Valor Global: R$ 250.000,00.
+
+    Vigência: 24 meses.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 2
+
+    assert "CONTRATO Nº 001/2026" in blocos[0]
+    assert "CONTRATO Nº 002/2026" in blocos[1]
+
+def test_segmentacao_nao_quebra_frase_continuada():
+
+    texto = """
+    PORTARIA GP Nº 311
+
+    Art. 1º DESIGNAR os servidores a seguir relacionados para atuarem como gestor e fiscal no
+
+    contrato celebrado por este Município e vinculado à Secretaria Municipal de Administração,
+    conforme Memorando nº 10.706/2025:
+
+    Processo
+    Servidor
+    Matrícula
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+
+def test_segmentacao_nao_quebra_cabecalho_de_tabela():
+
+    texto = """
+    PORTARIA GP Nº 311
+
+    Art. 1º DESIGNAR os servidores para atuarem como gestor e fiscal.
+
+    Contrato nº:
+    Administrativo/
+    Contratado(a):
+    Objeto:
+    Gestor/Fiscal:
+
+    Art. 2º Os servidores designados...
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1

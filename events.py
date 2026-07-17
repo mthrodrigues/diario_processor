@@ -76,15 +76,16 @@ def extrair_agente_publico(texto):
 
     padroes = [
 
+        r"NOMEAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+para",
+
+        r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+do\s+Cargo",
+
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?),\s*matr[ií]cula",
 
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para exercer",
 
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para integrar",
 
-        r"NOMEAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+para",
-
-        r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+do\s+Cargo",
     ]
 
     for padrao in padroes:
