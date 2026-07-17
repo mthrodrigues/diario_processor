@@ -58,6 +58,14 @@ LINHAS_BOILERPLATE = (
     'ANO ',
 )
 
+RE_BLOCO_AUTENTICACAO = re.compile(
+    r"""
+    Para\s+verificar\s+a\s+autenticidade
+    .*?
+    Pág\.\s*\d+\s*de\s*\d+\s*
+    """,
+    re.IGNORECASE | re.DOTALL | re.VERBOSE,
+)
 
 def _normalizar_espacos(texto):
     return " ".join(texto.split())
@@ -68,8 +76,22 @@ def _converter_valor_monetario(valor):
     valor = valor.replace(",", ".")
     return float(valor)
 
+def _remover_bloco_autenticacao(valor: str) -> str:
+    """
+    Remove blocos de autenticação inseridos pelo OCR no meio de um campo,
+    preservando o conteúdo útil após o rodapé.
+    """
+    if not valor:
+        return ""
+
+    return RE_BLOCO_AUTENTICACAO.sub("", valor).strip()
 
 def _limpar_campo_documental(valor):
+    if not valor:
+        return ""
+
+    valor = _remover_bloco_autenticacao(valor)
+
     valor = _normalizar_espacos(valor)
 
     valor = re.split(
@@ -81,18 +103,6 @@ def _limpar_campo_documental(valor):
 
     valor = re.split(
         r'\s*,?\s*inscrit[ao]\s+(?:no|na)\s+(?:CNPJ|CPF)\b',
-        valor,
-        maxsplit=1,
-        flags=re.IGNORECASE
-    )[0]
-
-    # Remove rodapés institucionais capturados pelo OCR
-    valor = re.split(
-        r'(?=Para\s+verificar\s+a\s+autenticidade\b|'
-        r'Documento\s+assinado\s+digitalmente\b|'
-        r'https?://|'
-        r'Chave\s+de\s+verificação\b|'
-        r'ICP-?Brasil\b)',
         valor,
         maxsplit=1,
         flags=re.IGNORECASE
@@ -116,6 +126,7 @@ def _extrair_campo_contextual(texto, rotulos, limite=180):
     )
 
     for match in re.finditer(padrao, texto, flags=re.IGNORECASE | re.DOTALL):
+
         candidato = _limpar_campo_documental(match.group(1))
 
         if not candidato or len(candidato) < 3:
@@ -188,17 +199,9 @@ def _eh_inicio_publicacao(linha, linha_anterior=None):
 
     if re.match(r"CONTRATO\s+N[º°O.]?\s*:", linha_upper):
         return False
-
+    
     for padrao in INICIOS_PUBLICACAO:
-
         if re.match(padrao, linha_upper):
-
-            print("=" * 80)
-            print("MATCH DE INÍCIO")
-            print(f"PADRÃO : {padrao}")
-            print(f"LINHA  : {linha_limpa}")
-            print("=" * 80)
-
             return True
 
     return False
@@ -450,15 +453,45 @@ def extrair_processo(texto):
 
     return None
 
-
 def extrair_fornecedor(texto):
     """
     Extrai fornecedor baseado em contexto documental.
     """
 
-    rotulos = [
+    # =====================================================
+    # 1ª tentativa:
+    # rótulos de alta confiança (não usa blacklist)
+    # =====================================================
+
+    rotulos_confiaveis = [
         r'CONTRATADA',
         r'CONTRATADO',
+    ]
+
+    candidato = _extrair_campo_contextual(
+        texto,
+        rotulos_confiaveis,
+        limite=160
+    )
+
+    if candidato:
+
+        candidato_upper = candidato.upper()
+
+        if candidato_upper.startswith(("OBJETO", "PROCESSO", "VALOR", "PRAZO")):
+            return None
+
+        if len(candidato) < 5:
+            return None
+
+        return candidato
+
+    # =====================================================
+    # 2ª tentativa:
+    # rótulos menos confiáveis (usa blacklist)
+    # =====================================================
+
+    rotulos_secundarios = [
         r'FORNECEDOR',
         r'EMPRESA',
         r'LOCADOR',
@@ -480,14 +513,21 @@ def extrair_fornecedor(texto):
         "PODER EXECUTIVO",
     ]
 
-    candidato = _extrair_campo_contextual(texto, rotulos, limite=160)
+    candidato = _extrair_campo_contextual(
+        texto,
+        rotulos_secundarios,
+        limite=160
+    )
 
     if not candidato:
         return None
 
     candidato_upper = candidato.upper()
 
-    if any(b in candidato_upper for b in blacklist):
+    if any(
+        re.search(rf"\b{re.escape(b)}\b", candidato_upper)
+        for b in blacklist
+    ):
         return None
 
     if candidato_upper.startswith(("OBJETO", "PROCESSO", "VALOR", "PRAZO")):
@@ -497,7 +537,6 @@ def extrair_fornecedor(texto):
         return None
 
     return candidato
-
 
 def segmentar_publicacoes(texto):
     """
@@ -516,23 +555,8 @@ def segmentar_publicacoes(texto):
         inicio = _eh_inicio_publicacao(linha, linha_anterior)
         recente = _inicio_recente_de_publicacao(bloco_atual)
 
-        if inicio:
-            print("=" * 80)
-            print(f"Linha...............: {indice}")
-            print(f"Início detectado....: {linha.strip()}")
-            print(f"Início recente......: {recente}")
-            print(f"Linhas no bloco.....: {len(bloco_atual)}")
-
-            if bloco_atual:
-                print(f"Última linha bloco..: {bloco_atual[-1].strip()}")
-            else:
-                print("Última linha bloco..: <bloco vazio>")
-
         # inicia novo bloco
         if inicio and not recente:
-
-            print(">>> NOVO BLOCO ABERTO <<<")
-            print()
 
             # salva bloco anterior
             if bloco_atual:
