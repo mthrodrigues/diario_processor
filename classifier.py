@@ -3,6 +3,13 @@ TIPOS_PRIORITARIOS = [
     "extrato",
 ]
 
+TIPOS_ENRIQUECIMENTO_CONTRATUAL = {
+    "contrato",
+    "extrato",
+    "aditivo",
+    "apostilamento",
+}
+
 RELEVANCIA_ALTA = "alta"
 RELEVANCIA_MEDIA = "media"
 RELEVANCIA_BAIXA = "baixa"
@@ -36,3 +43,9 @@ def eh_tipo_prioritario(tipo):
 
 def deve_enriquecer_contratual(tipo):
     return eh_tipo_prioritario(tipo)
+
+def eh_tipo_prioritario(tipo):
+    return tipo in TIPOS_PRIORITARIOS
+
+def deve_enriquecer_contratual(tipo):
+    return tipo in TIPOS_ENRIQUECIMENTO_CONTRATUAL

@@ -71,18 +71,33 @@ def _converter_valor_monetario(valor):
 
 def _limpar_campo_documental(valor):
     valor = _normalizar_espacos(valor)
+
     valor = re.split(
         r'\s*[-–—]\s*(?:Objeto|Valor|Prazo|Processo|Vigência)\b',
         valor,
         maxsplit=1,
         flags=re.IGNORECASE
     )[0]
+
     valor = re.split(
         r'\s*,?\s*inscrit[ao]\s+(?:no|na)\s+(?:CNPJ|CPF)\b',
         valor,
         maxsplit=1,
         flags=re.IGNORECASE
     )[0]
+
+    # Remove rodapés institucionais capturados pelo OCR
+    valor = re.split(
+        r'(?=Para\s+verificar\s+a\s+autenticidade\b|'
+        r'Documento\s+assinado\s+digitalmente\b|'
+        r'https?://|'
+        r'Chave\s+de\s+verificação\b|'
+        r'ICP-?Brasil\b)',
+        valor,
+        maxsplit=1,
+        flags=re.IGNORECASE
+    )[0]
+
     return valor.strip(" .;:-,")
 
 
