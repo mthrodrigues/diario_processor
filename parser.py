@@ -501,6 +501,7 @@ def extrair_fornecedor(texto):
         r'DETENTORA(?:\s+DA\s+ATA)?',
         r'ADJUDICAT[ÁA]RIA',
         r'VENCEDORA',
+        r'CESSION[ÁA]RIO',
     ]
 
     blacklist = [
