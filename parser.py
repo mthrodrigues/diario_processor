@@ -27,6 +27,25 @@ MARCADORES_FIM_CAMPO = [
     r'PELO\s+PERMISSION[ÁA]RIO',
 ]
 
+PADROES_CORTE_OBJETO = [
+    r',\s*por\s+parte\s+da\s+administração\b',
+    r',\s*no\s+valor\s+de\b',
+]
+
+ARTIGOS_INICIAIS_OBJETO = [
+    r'^A\s+',
+    r'^O\s+',
+    r'^AS\s+',
+    r'^OS\s+',
+]
+
+NORMALIZACOES_OBJETO = {
+    "adequação orçamentaria": "Adequação orçamentária",
+    "adequação orçamentária": "Adequação orçamentária",
+    "adequação orçamentaria do contrato": "Adequação orçamentária do contrato",
+    "adequação orçamentária do contrato": "Adequação orçamentária do contrato",
+}
+
 INICIOS_PUBLICACAO = [
     r'CONTRATO\b',
     r'EXTRATO\b',
@@ -303,6 +322,60 @@ def extrair_vigencia(texto):
 
     return None
 
+def _normalizar_objeto(objeto):
+    """
+    Aplica regras específicas de normalização do campo objeto.
+    """
+    if not objeto:
+        return objeto
+
+    objeto = _normalizar_espacos(objeto)
+
+    for padrao in PADROES_CORTE_OBJETO:
+        novo_objeto = re.split(
+            padrao,
+            objeto,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )
+
+        if len(novo_objeto) > 1:
+            objeto = novo_objeto[0]
+            break
+    
+    objeto = objeto.strip(" .;:-,")
+
+    objeto = _padronizar_objeto(objeto)
+
+    return objeto
+
+def _padronizar_objeto(objeto):
+    """
+    Padroniza pequenas variações textuais do objeto.
+    """
+
+    if not objeto:
+        return objeto
+
+    for padrao in ARTIGOS_INICIAIS_OBJETO:
+        objeto = re.sub(
+            padrao,
+            "",
+            objeto,
+            flags=re.IGNORECASE,
+        )
+
+    objeto = _normalizar_espacos(objeto)
+
+    if objeto:
+        objeto = objeto[0].upper() + objeto[1:]
+
+    objeto = NORMALIZACOES_OBJETO.get(
+        objeto.lower(),
+        objeto,
+    )
+
+    return objeto
 
 def extrair_objeto(texto):
     """
@@ -319,6 +392,7 @@ def extrair_objeto(texto):
     )
 
     if objeto:
+        objeto = _normalizar_objeto(objeto)
         return objeto
 
     return None
