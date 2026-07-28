@@ -437,12 +437,13 @@ def extrair_processo(texto):
     12345/2026
     """
 
-    numero_processo = r'(\d{1,6}(?:\.\d{3})*/\d{2,4})'
+    numero_processo = r'(\d{1,6}(?:\.\d{3})*(?:/|\.)\d{2,4})'
+
     padroes_contexto = [
-        rf'\bPROCESSO\s*(?:ADMINISTRATIVO|LICITAT[ÓO]RIO)?\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
-        rf'\bPROC(?:ESSO)?\.\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
-        rf'\bPROTOCOLO\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
-        rf'\bMEMORANDO\s*(?:N[°ºO\.]?\s*)?{numero_processo}',
+    rf'\bPROCESSO\s*:?\s*(?:ADMINISTRATIVO|LICITAT[ÓO]RIO)?\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
+    rf'\bPROC(?:ESSO)?\.\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
+    rf'\bPROTOCOLO\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
+    rf'\bMEMORANDO\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
     ]
 
     for padrao in padroes_contexto:
@@ -477,6 +478,22 @@ def extrair_fornecedor(texto):
     if candidato:
 
         candidato_upper = candidato.upper()
+
+        blacklist = [
+        "SECRETARIA",
+        "PREFEITURA",
+        "MUNICIPAL",
+        "DEPARTAMENTO",
+        "SUPRIMENTOS",
+        "DIÁRIO OFICIAL",
+        "PODER EXECUTIVO",
+        ]
+
+        if any(
+            re.search(rf"\b{re.escape(b)}\b", candidato_upper)
+            for b in blacklist
+        ):
+            return None
 
         if candidato_upper.startswith(("OBJETO", "PROCESSO", "VALOR", "PRAZO")):
             return None
