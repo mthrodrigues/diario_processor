@@ -192,6 +192,28 @@ def test_contrato_locacao():
 
     assert extrair_contrato(texto) == "022.CL.05.2022"
 
+def test_extrair_contrato_registrado_publicado():
+    texto = """
+    Termo Aditivo tem por objeto o reequilíbrio financeiro do Contrato registrado e
+    publicado sob o nº. 005.013.2025, na forma abaixo, conforme consta do Processo
+    Administrativo nº 733/2025.
+    """
+
+    assert extrair_contrato(texto) == "005.013.2025"
+
+
+def test_extrair_contrato_termo_cessao_uso():
+    texto = """
+    1º Termo Aditivo ao Termo de Cessão de Uso de Imóvel 010.000.2024
+
+    Cedente: Município de Teresópolis.
+
+    Objeto: alteração do Termo de Cessão de Uso de Bem Imóvel registrado sob o nº
+    010.000.2024.
+    """
+
+    assert extrair_contrato(texto) == "010.000.2024"
+
 # =====================================================
 # TESTES - EXTRAÇÃO DE FORNECEDOR
 # =====================================================

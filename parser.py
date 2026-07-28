@@ -601,9 +601,13 @@ def extrair_contrato(texto):
     """
 
     padroes = [
-        r'\bCONTRATO(?:\s+ADMINISTRATIVO|\s+DE\s+.{1,80}?)?\s*N[°ºO\.]?\s*([\dA-Z\.\-\/]+)',
-        r'\bEXTRATO\s+DE\s+CONTRATO\s*N[°ºO\.]?\s*([\d\.\-\/]+)',
-        r'\bTERMO\s+DE\s+.{3,120}?\s+N[°ºO\.]?\s*([\d\.\-\/]+)',
+    r'\bCONTRATO(?:\s+ADMINISTRATIVO|\s+DE\s+.{1,80}?|\s+REGISTRADO\s+E\s+PUBLICADO\s+SOB\s+O)?\s*N(?:\s*[°ºO])?\.?\s*([\dA-Z.\-/]+)',
+
+    r'\bEXTRATO\s+DE\s+CONTRATO\s*N[°ºO\.]?\s*([\d\.\-\/]+)',
+
+    r'\bTERMO\s+DE\s+.{3,120}?\s+N[°ºO\.]?\s*([\d\.\-\/]+)',
+
+    r'\bTERMO\s+DE\s+CESS[ÃA]O\s+DE\s+USO(?:\s+DE\s+IM[ÓO]VEL)?\s+([\dA-Z\.\-\/]+)',
     ]
 
     for padrao in padroes:
@@ -615,7 +619,8 @@ def extrair_contrato(texto):
         )
 
         if match:
-            return match.group(1)
+            contrato = match.group(1).rstrip(".,;:")
+            return contrato
 
     return None
 
