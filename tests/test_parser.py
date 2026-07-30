@@ -214,6 +214,26 @@ def test_extrair_contrato_termo_cessao_uso():
 
     assert extrair_contrato(texto) == "010.000.2024"
 
+def test_extrair_objeto_sem_dois_pontos():
+    texto = """
+    3º Termo de Apostilamento ao Contrato nº 020.06.2016
+
+    Contratada: AADL Empreendimento e Participações Ltda.
+
+    Objeto
+    Adequação orçamentária do contrato, por parte da Administração,
+    a fim de que conste o empenho nº 492/2026 para o exercício
+    financeiro atual, no valor de R$ 19.412,28.
+    """
+
+    esperado = (
+        "Adequação orçamentária do contrato, por parte da Administração, "
+        "a fim de que conste o empenho nº 492/2026 para o exercício "
+        "financeiro atual, no valor de R$ 19.412,28"
+    )
+
+    assert extrair_objeto(texto) == esperado
+
 # =====================================================
 # TESTES - EXTRAÇÃO DE FORNECEDOR
 # =====================================================

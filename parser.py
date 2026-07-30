@@ -116,7 +116,7 @@ def _extrair_campo_contextual(texto, rotulos, limite=180):
     marcadores_regex = "|".join(MARCADORES_FIM_CAMPO)
 
     padrao = (
-        rf'\b(?:{rotulos_regex})\s*:\s*'
+        rf'\b(?:{rotulos_regex})(?:\s*:\s*|\s*[-–—]\s*|(?:\r?\n)+\s*)'
         rf'(.+?)'
         rf'(?='
         rf'\s*[-–—]?\s*(?:{marcadores_regex})\s*:'
