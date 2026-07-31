@@ -1,7 +1,7 @@
 import re
 
 
-PADRAO_VALOR_MONETARIO = r'R\$\s*:?\s*(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})'
+PADRAO_VALOR_MONETARIO = r'R\$\s*:?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?)'
 
 MARCADORES_FIM_CAMPO = [
     r'OBJETO',
@@ -26,25 +26,6 @@ MARCADORES_FIM_CAMPO = [
     r'PELO\s+PERMITENTE',
     r'PELO\s+PERMISSION[ÁA]RIO',
 ]
-
-PADROES_CORTE_OBJETO = [
-    r',\s*por\s+parte\s+da\s+administração\b',
-    r',\s*no\s+valor\s+de\b',
-]
-
-ARTIGOS_INICIAIS_OBJETO = [
-    r'^A\s+',
-    r'^O\s+',
-    r'^AS\s+',
-    r'^OS\s+',
-]
-
-NORMALIZACOES_OBJETO = {
-    "adequação orçamentaria": "Adequação orçamentária",
-    "adequação orçamentária": "Adequação orçamentária",
-    "adequação orçamentaria do contrato": "Adequação orçamentária do contrato",
-    "adequação orçamentária do contrato": "Adequação orçamentária do contrato",
-}
 
 INICIOS_PUBLICACAO = [
     r'CONTRATO\b',
@@ -261,7 +242,7 @@ def extrair_valor_principal(texto):
     Quando houver múltiplos valores sem contexto claro, retorna None.
     """
 
-    valor = r'(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})'
+    valor = r'(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?)'
     padroes_contexto = [
         rf'\bvalor\s+(?:global|total|estimado|contratado|da\s+contrata[çc][ãa]o|do\s+contrato|da\s+proposta)\s*(?:de|:)?\s*R\$\s*:?\s*{valor}',
         rf'\bvalor\s*R\$\s*:?\s*{valor}',
@@ -322,66 +303,7 @@ def extrair_vigencia(texto):
 
     return None
 
-def _normalizar_objeto(objeto):
-    """
-    Aplica regras específicas de normalização do campo objeto.
-    """
-    if not objeto:
-        return objeto
-
-    objeto = _normalizar_espacos(objeto)
-
-    for padrao in PADROES_CORTE_OBJETO:
-        novo_objeto = re.split(
-            padrao,
-            objeto,
-            maxsplit=1,
-            flags=re.IGNORECASE,
-        )
-
-        if len(novo_objeto) > 1:
-            objeto = novo_objeto[0]
-            break
-    
-    objeto = objeto.strip(" .;:-,")
-
-    objeto = _padronizar_objeto(objeto)
-
-    return objeto
-
-def _padronizar_objeto(objeto):
-    """
-    Padroniza pequenas variações textuais do objeto.
-    """
-
-    if not objeto:
-        return objeto
-
-    for padrao in ARTIGOS_INICIAIS_OBJETO:
-        objeto = re.sub(
-            padrao,
-            "",
-            objeto,
-            flags=re.IGNORECASE,
-        )
-
-    objeto = _normalizar_espacos(objeto)
-
-    if objeto:
-        objeto = objeto[0].upper() + objeto[1:]
-
-    objeto = NORMALIZACOES_OBJETO.get(
-        objeto.lower(),
-        objeto,
-    )
-
-    return objeto
-
 def extrair_objeto(texto):
-    """
-    Extrai objeto contratual com base no rótulo Objeto.
-    """
-
     objeto = _extrair_campo_contextual(
         texto,
         [
@@ -391,12 +313,7 @@ def extrair_objeto(texto):
         limite=700
     )
 
-    if objeto:
-        objeto = _normalizar_objeto(objeto)
-        return objeto
-
-    return None
-
+    return objeto
 
 def identificar_tipo(texto):
     """

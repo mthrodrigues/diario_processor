@@ -417,6 +417,18 @@ def test_dois_valores_sem_contexto_retorna_none():
 
     assert extrair_valor_principal(texto) is None
 
+def test_valor_principal_inteiro_com_milhar():
+    texto = """
+    Valor R$: 1.168 (um mil, cento e sessenta e oito reais).
+    """
+    assert extrair_valor_principal(texto) == 1168.0
+
+def test_valor_principal_inteiro():
+    texto = """
+    Valor R$: 5.000 (Cinco mil reais).
+    """
+    assert extrair_valor_principal(texto) == 5000.0
+
 # =====================================================
 # TESTES - EXTRAÇÃO DE OBJETO
 # =====================================================
