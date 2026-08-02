@@ -3,8 +3,6 @@
     {
       "numero_bloco": 1,
       "tipo": "extrato",
-      "relevancia": "alta",
-      "prioritario": true,
       "processo": "1.234/2026",
       "contrato": "014/2026",
       "contratante": "Fundo Municipal de Saúde",

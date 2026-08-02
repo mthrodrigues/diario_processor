@@ -1,6 +1,11 @@
 import unittest
 
-from normalizer import normalize_contratante, normalize_entidade, normalize_fornecedor
+from normalizer import (
+    normalize_contratante,
+    normalize_entidade,
+    normalize_fornecedor,
+    normalize_processo,
+)
 
 
 class NormalizerTest(unittest.TestCase):
@@ -42,6 +47,22 @@ class NormalizerTest(unittest.TestCase):
     def test_valores_vazios(self):
         self.assertIsNone(normalize_fornecedor(None))
         self.assertIsNone(normalize_fornecedor("   "))
+
+    def test_normaliza_processo_sem_alterar_identidade(self):
+        self.assertIsNone(normalize_processo(None))
+        self.assertIsNone(normalize_processo(""))
+        self.assertEqual(normalize_processo(" 8.575 /2025, "), "8.575/2025")
+        self.assertEqual(normalize_processo("214.400-6/2025"), "214.400-6/2025")
+        self.assertEqual(normalize_processo("214.400-6/2025."), "214.400-6/2025")
+        self.assertEqual(
+            normalize_processo("63386.000421/2025-30"),
+            "63386.000421/2025-30",
+        )
+        self.assertEqual(
+            normalize_processo("04105.0000001409/2024"),
+            "04105.0000001409/2024",
+        )
+        self.assertEqual(normalize_processo("52/26"), "52/26")
 
 
 if __name__ == "__main__":

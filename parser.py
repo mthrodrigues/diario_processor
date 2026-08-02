@@ -428,20 +428,18 @@ def extrair_processo(texto):
     12345/2026
     """
 
-    numero_processo = r'(\d{1,6}(?:\.\d{3})*(?:/|\.)\d{2,4})'
+    numero_processo = r'(\d+(?:\.\d+)*(?:-\d+)?\s*/\s*\d{2,4}(?:-\d+)?)'
 
     padroes_contexto = [
     rf'\bPROCESSO\s*:?\s*(?:ADMINISTRATIVO|LICITAT[ÓO]RIO)?\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
     rf'\bPROC(?:ESSO)?\.\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
-    rf'\bPROTOCOLO\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
-    rf'\bMEMORANDO\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
     ]
 
     for padrao in padroes_contexto:
         match = re.search(padrao, texto, flags=re.IGNORECASE)
 
         if match:
-            return match.group(1)
+            return re.sub(r'\s+/', '/', match.group(1))
 
     return None
 

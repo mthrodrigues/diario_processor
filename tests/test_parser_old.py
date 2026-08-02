@@ -100,7 +100,7 @@ class ParserDocumentalTest(unittest.TestCase):
             "Prestação de serviços de manutenção preventiva dos equipamentos",
         )
 
-    def test_aditivo_e_classificado_sem_virar_contrato_prioritario(self):
+    def test_aditivo_e_identificado_como_aditivo(self):
         texto = (
             "TERMO ADITIVO Nº 02 AO CONTRATO Nº 010/2025\n"
             "Contratada: Empresa Beta Ltda. Objeto: Prorrogação de prazo."

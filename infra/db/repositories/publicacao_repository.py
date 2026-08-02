@@ -25,12 +25,11 @@ class PublicacaoRepository:
         cnpj,
         valores,
         valor_principal=None,
-        relevancia=None,
-        prioritario=False,
         vigencia=None,
         objeto=None,
         fornecedor_normalizado=None,
         contratante_normalizado=None,
+        processo_normalizado=None,
     ):
         with self.conn.cursor() as cursor:
             cursor.execute(
@@ -50,14 +49,13 @@ class PublicacaoRepository:
                     cnpj,
                     valores,
                     valor_principal,
-                    relevancia,
-                    prioritario,
                     vigencia,
                     objeto,
-                    data_processamento
+                    data_processamento,
+                    processo_normalizado
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s::jsonb, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -75,11 +73,10 @@ class PublicacaoRepository:
                     cnpj,
                     json.dumps(valores or []),
                     valor_principal,
-                    relevancia,
-                    bool(prioritario),
                     vigencia,
                     objeto,
                     datetime.now(),
+                    processo_normalizado,
                 ),
             )
 

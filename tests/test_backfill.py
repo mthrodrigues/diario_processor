@@ -84,12 +84,11 @@ class BackfillTest(unittest.TestCase):
         self.assertEqual(registro["fornecedor_normalizado"], "CONDOR")
         self.assertEqual(registro["contratante_normalizado"], "O MUNICIPIO DE TERESOPOLIS")
         self.assertEqual(registro["processo"], "1.387/2026")
+        self.assertEqual(registro["processo_normalizado"], "1.387/2026")
         self.assertEqual(registro["contrato"], "002.023.2026")
         self.assertEqual(registro["valor_principal"], 41985.0)
         self.assertEqual(registro["vigencia"], "180 dias")
         self.assertEqual(registro["objeto"], "Aquisição de equipamento")
-        self.assertEqual(registro["relevancia"], "alta")
-        self.assertEqual(registro["prioritario"], 1)
 
     def test_nao_sobrescreve_dados_validos(self):
         registro_id = self._inserir_publicacao_antiga(
@@ -124,7 +123,6 @@ class BackfillTest(unittest.TestCase):
         self.assertEqual(registro["fornecedor_normalizado"], "CONDOR")
         self.assertEqual(registro["contratante_normalizado"], "O MUNICIPIO DE TERESOPOLIS")
         self.assertIsNone(registro["valor_principal"])
-        self.assertIsNone(registro["relevancia"])
         self.assertIsNone(registro["objeto"])
 
     def test_only_analytics_fields_nao_preenche_normalizacao(self):
@@ -138,8 +136,8 @@ class BackfillTest(unittest.TestCase):
 
         self.assertIsNone(registro["fornecedor_normalizado"])
         self.assertIsNone(registro["contratante_normalizado"])
+        self.assertIsNone(registro["processo_normalizado"])
         self.assertEqual(registro["valor_principal"], 41985.0)
-        self.assertEqual(registro["relevancia"], "alta")
 
     def test_limit_restringe_quantidade_analisada(self):
         primeiro = self._inserir_publicacao_antiga(numero_bloco=1, arquivo_path="diario_1.pdf")

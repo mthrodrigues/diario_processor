@@ -88,3 +88,15 @@ def normalize_fornecedor(nome):
 
 def normalize_contratante(nome):
     return normalize_entidade(nome)
+
+
+def normalize_processo(processo):
+    """Produz a identidade textual canônica de um processo administrativo."""
+    if processo is None or not isinstance(processo, str):
+        return None
+
+    normalizado = processo.strip()
+    normalizado = re.sub(r"\s*/\s*", "/", normalizado)
+    normalizado = re.sub(r"[,.]+\s*$", "", normalizado)
+
+    return normalizado.strip() or None

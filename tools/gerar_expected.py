@@ -9,7 +9,6 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from classifier import classificar_relevancia, eh_tipo_prioritario
 from parser import (
     extrair_cnpj,
     extrair_contratante,
@@ -51,10 +50,6 @@ def gerar(nome):
             "numero_bloco": indice + 1,
 
             "tipo": tipo,
-
-            "relevancia": classificar_relevancia(tipo),
-
-            "prioritario": eh_tipo_prioritario(tipo),
 
             "processo": extrair_processo(bloco),
 

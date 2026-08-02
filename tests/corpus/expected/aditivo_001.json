@@ -3,8 +3,6 @@
         {
             "numero_bloco": 1,
             "tipo": "aditivo",
-            "relevancia": "media",
-            "prioritario": false,
             "processo": null,
             "contrato": "009.000.2024",
             "contratante": "O Municípi",

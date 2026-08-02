@@ -30,19 +30,19 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
             cnpj=None,
             valores=[100.0],
             valor_principal=100.0,
-            relevancia="alta",
-            prioritario=True,
             vigencia="12 meses",
             objeto="Aquisição",
             fornecedor_normalizado="CONDOR",
             contratante_normalizado="MUNICIPIO DE TERESOPOLIS",
+            processo_normalizado="1/2026",
         )
 
         conn = database.conectar()
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT fornecedor, fornecedor_normalizado, contratante, contratante_normalizado
+            SELECT fornecedor, fornecedor_normalizado, contratante, contratante_normalizado,
+                   processo_normalizado
             FROM publicacoes
             """
         )
@@ -56,6 +56,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
                 "CONDOR",
                 "Município de Teresópolis",
                 "MUNICIPIO DE TERESOPOLIS",
+                "1/2026",
             ),
         )
 
@@ -77,8 +78,6 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
                 cnpj=None,
                 valores=[100.0 * indice],
                 valor_principal=100.0 * indice,
-                relevancia="alta",
-                prioritario=True,
                 vigencia=None,
                 objeto=None,
                 fornecedor_normalizado="CONDOR",
@@ -104,9 +103,9 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
 
         self.assertIn("idx_publicacoes_fornecedor_normalizado", indices)
         self.assertIn("idx_publicacoes_contratante_normalizado", indices)
+        self.assertIn("idx_publicacoes_processo_normalizado", indices)
         self.assertIn("idx_publicacoes_valor_principal", indices)
         self.assertIn("idx_publicacoes_tipo", indices)
-        self.assertIn("idx_publicacoes_relevancia", indices)
 
 
 if __name__ == "__main__":

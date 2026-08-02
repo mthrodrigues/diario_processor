@@ -1,5 +1,5 @@
-from classifier import classificar_relevancia, deve_enriquecer_contratual, eh_tipo_prioritario
-from normalizer import normalize_contratante, normalize_fornecedor
+from classifier import deve_enriquecer_contratual
+from normalizer import normalize_contratante, normalize_fornecedor, normalize_processo
 from parser import (
     extrair_cnpj,
     extrair_contratante,
@@ -16,14 +16,10 @@ from parser import (
 
 def extrair_metadados_bloco(texto_bloco):
     tipo = identificar_tipo(texto_bloco)
-    relevancia = classificar_relevancia(tipo)
-    prioritario = eh_tipo_prioritario(tipo)
-
     metadados = {
         "tipo": tipo,
-        "relevancia": relevancia,
-        "prioritario": prioritario,
         "processo": extrair_processo(texto_bloco),
+        "processo_normalizado": None,
         "contrato": extrair_contrato(texto_bloco),
         "cnpj": extrair_cnpj(texto_bloco),
         "valores": extrair_valores(texto_bloco),
@@ -35,6 +31,8 @@ def extrair_metadados_bloco(texto_bloco):
         "vigencia": None,
         "objeto": None,
     }
+
+    metadados["processo_normalizado"] = normalize_processo(metadados["processo"])
 
     if deve_enriquecer_contratual(tipo):
         contratante = extrair_contratante(texto_bloco)

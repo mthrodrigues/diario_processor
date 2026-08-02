@@ -122,6 +122,7 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn('"diario".schema_migrations', sql_executado)
         self.assertIn('"diario".publicacoes', sql_executado)
         self.assertIn("idx_diario_publicacoes_fornecedor_normalizado", sql_executado)
+        self.assertIn("idx_diario_publicacoes_processo_normalizado", sql_executado)
 
     def test_repository_salvar_publicacao_usa_schema_dedicado(self):
         conn = FakeConnection()
@@ -140,12 +141,11 @@ class PostgresInfraTest(unittest.TestCase):
             cnpj=None,
             valores=[100.0],
             valor_principal=100.0,
-            relevancia="alta",
-            prioritario=True,
             vigencia="12 meses",
             objeto="Objeto",
             fornecedor_normalizado="CONDOR",
             contratante_normalizado="MUNICIPIO",
+            processo_normalizado="1/2026",
         )
 
         sql, params = conn.executed[-1]
@@ -155,6 +155,7 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertEqual(params[0], 1)
         self.assertEqual(params[2], "diario_1.pdf")
         self.assertEqual(params[12], "[100.0]")
+        self.assertEqual(params[-1], "1/2026")
 
     def test_repository_ja_processado(self):
         conn = FakeConnection()

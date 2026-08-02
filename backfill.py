@@ -4,7 +4,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from database import conectar, criar_tabela
-from normalizer import normalize_contratante, normalize_fornecedor
+from normalizer import normalize_contratante, normalize_fornecedor, normalize_processo
 from processor import extrair_metadados_bloco
 
 
@@ -15,8 +15,6 @@ CAMPOS_ANALITICOS = [
     "cnpj",
     "valores",
     "valor_principal",
-    "relevancia",
-    "prioritario",
     "vigencia",
     "objeto",
     "fornecedor",
@@ -26,6 +24,7 @@ CAMPOS_ANALITICOS = [
 CAMPOS_NORMALIZACAO = [
     "fornecedor_normalizado",
     "contratante_normalizado",
+    "processo_normalizado",
 ]
 
 CAMPOS_BACKFILL = CAMPOS_ANALITICOS + CAMPOS_NORMALIZACAO
@@ -156,6 +155,17 @@ def _preparar_campos_normalizados(registro, metadados, atualizacoes):
         if not _campo_vazio(contratante_normalizado):
             atualizacoes["contratante_normalizado"] = contratante_normalizado
 
+    if _campo_vazio(registro.get("processo_normalizado")):
+        processo_raw = _primeiro_valor(
+            registro.get("processo"),
+            atualizacoes.get("processo"),
+            metadados.get("processo"),
+        )
+        processo_normalizado = normalize_processo(processo_raw)
+
+        if not _campo_vazio(processo_normalizado):
+            atualizacoes["processo_normalizado"] = processo_normalizado
+
 
 def _buscar_registros(conn, limit=None, campos_alvo=None):
     campos_alvo = campos_alvo or CAMPOS_BACKFILL
@@ -240,7 +250,7 @@ def main(argv=None):
     parser.add_argument(
         "--only-normalization",
         action="store_true",
-        help="Preenche apenas fornecedor_normalizado e contratante_normalizado.",
+        help="Preenche campos normalizados de fornecedor, contratante e processo.",
     )
     parser.add_argument(
         "--only-analytics-fields",

@@ -43,8 +43,6 @@ class AnalyticsTest(unittest.TestCase):
             cnpj=None,
             valores=[valor_principal] if valor_principal is not None else [],
             valor_principal=valor_principal,
-            relevancia="alta" if tipo in ("contrato", "extrato") else "baixa",
-            prioritario=tipo in ("contrato", "extrato"),
             vigencia=None,
             objeto=objeto,
             fornecedor_normalizado=fornecedor_normalizado,

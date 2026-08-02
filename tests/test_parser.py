@@ -36,16 +36,16 @@ def test_processo_abreviado():
     assert extrair_processo(texto) == "12345/2026"
 
 
-def test_protocolo():
+def test_protocolo_nao_e_processo():
 
     texto = """
     Protocolo nº 32.481/2025
     """
 
-    assert extrair_processo(texto) == "32.481/2025"
+    assert extrair_processo(texto) is None
 
 
-def test_memorando():
+def test_memorando_nao_e_processo():
 
     texto = """
     Prazo: 30 (trinta) dias.
@@ -55,7 +55,7 @@ def test_memorando():
     PELO CONTRATANTE
     """
 
-    assert extrair_processo(texto) == "29.744/25"
+    assert extrair_processo(texto) is None
 
 
 def test_processo_sem_numero():
@@ -64,6 +64,37 @@ def test_processo_sem_numero():
     Processo nº
     """
 
+    assert extrair_processo(texto) is None
+
+
+@pytest.mark.parametrize(
+    ("texto", "esperado"),
+    [
+        ("Processo nº 214.400-6/2025", "214.400-6/2025"),
+        (
+            "Processo Administrativo nº 04105.0000001409/2024",
+            "04105.0000001409/2024",
+        ),
+        (
+            "Processo nº 63386.000421/2025-30",
+            "63386.000421/2025-30",
+        ),
+        ("Processo Administrativo nº 8.575 /2025", "8.575/2025"),
+    ],
+)
+def test_processo_preserva_formatos_administrativos_reais(texto, esperado):
+    assert extrair_processo(texto) == esperado
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Contrato nº 083.11.2021",
+        "Contrato nº 008.014.2026",
+        "conforme protocolo nº 52/26",
+    ],
+)
+def test_processo_exige_contexto_de_processo(texto):
     assert extrair_processo(texto) is None
 
 

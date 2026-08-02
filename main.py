@@ -388,18 +388,13 @@ def run():
                     )
 
                     print(
-                        f"Relevância documental: "
-                        f"{metadados['relevancia']}"
-                    )
-
-                    print(
-                        f"Prioritário: "
-                        f"{metadados['prioritario']}"
-                    )
-
-                    print(
                         f"Processo identificado: "
                         f"{metadados['processo']}"
+                    )
+
+                    print(
+                        f"Processo normalizado: "
+                        f"{metadados['processo_normalizado']}"
                     )
 
                     print(
@@ -483,8 +478,6 @@ def run():
 
                         metadados["valor_principal"],
 
-                        metadados["relevancia"],
-                        metadados["prioritario"],
 
                         metadados["vigencia"],
                         metadados["objeto"],
@@ -495,6 +488,10 @@ def run():
 
                         metadados[
                             "contratante_normalizado"
+                        ],
+
+                        metadados[
+                            "processo_normalizado"
                         ]
                     )
 

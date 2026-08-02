@@ -31,11 +31,10 @@ def criar_tabela():
         cnpj TEXT,
         valores TEXT,
         valor_principal REAL,
-        relevancia TEXT,
-        prioritario INTEGER,
         vigencia TEXT,
         objeto TEXT,
-        data_processamento TEXT
+        data_processamento TEXT,
+        processo_normalizado TEXT
     )
     """)
 
@@ -49,14 +48,46 @@ def garantir_colunas_publicacoes(cursor):
     cursor.execute("PRAGMA table_info(publicacoes)")
     colunas = {coluna[1] for coluna in cursor.fetchall()}
 
+    colunas_esperadas = {
+        "id",
+        "diario_id",
+        "numero_bloco",
+        "arquivo_path",
+        "texto_bloco",
+        "tipo",
+        "processo",
+        "contrato",
+        "contratante",
+        "fornecedor",
+        "fornecedor_normalizado",
+        "contratante_normalizado",
+        "cnpj",
+        "valores",
+        "valor_principal",
+        "vigencia",
+        "objeto",
+        "data_processamento",
+        "processo_normalizado",
+    }
+
+    for coluna in sorted(colunas - colunas_esperadas):
+        cursor.execute("PRAGMA index_list(publicacoes)")
+        for indice in cursor.fetchall():
+            nome_indice = indice[1]
+            cursor.execute(f'PRAGMA index_info("{nome_indice}")')
+            colunas_indice = {linha[2] for linha in cursor.fetchall()}
+            if coluna in colunas_indice:
+                cursor.execute(f'DROP INDEX IF EXISTS "{nome_indice}"')
+
+        cursor.execute(f'ALTER TABLE publicacoes DROP COLUMN "{coluna}"')
+
     colunas_novas = {
         "valor_principal": "REAL",
-        "relevancia": "TEXT",
-        "prioritario": "INTEGER",
         "vigencia": "TEXT",
         "objeto": "TEXT",
         "fornecedor_normalizado": "TEXT",
         "contratante_normalizado": "TEXT",
+        "processo_normalizado": "TEXT",
     }
 
     for nome, tipo in colunas_novas.items():
@@ -74,6 +105,11 @@ def garantir_colunas_publicacoes(cursor):
     """)
 
     cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_publicacoes_processo_normalizado
+    ON publicacoes (processo_normalizado)
+    """)
+
+    cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_publicacoes_valor_principal
     ON publicacoes (valor_principal)
     """)
@@ -81,11 +117,6 @@ def garantir_colunas_publicacoes(cursor):
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_publicacoes_tipo
     ON publicacoes (tipo)
-    """)
-
-    cursor.execute("""
-    CREATE INDEX IF NOT EXISTS idx_publicacoes_relevancia
-    ON publicacoes (relevancia)
     """)
 
     cursor.execute("""
@@ -108,12 +139,11 @@ def salvar_publicacao(
     cnpj,
     valores,
     valor_principal=None,
-    relevancia=None,
-    prioritario=False,
     vigencia=None,
     objeto=None,
     fornecedor_normalizado=None,
-    contratante_normalizado=None
+    contratante_normalizado=None,
+    processo_normalizado=None
 ):
     conn = conectar()
     cursor = conn.cursor()
@@ -134,12 +164,11 @@ def salvar_publicacao(
         cnpj,
         valores,
         valor_principal,
-        relevancia,
-        prioritario,
         vigencia,
         objeto,
-        data_processamento
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        data_processamento,
+        processo_normalizado
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         diario_id,
         numero_bloco,
@@ -155,11 +184,10 @@ def salvar_publicacao(
         cnpj,
         json.dumps(valores),
         valor_principal,
-        relevancia,
-        1 if prioritario else 0,
         vigencia,
         objeto,
-        datetime.now().isoformat()
+        datetime.now().isoformat(),
+        processo_normalizado
     ))
 
     conn.commit()

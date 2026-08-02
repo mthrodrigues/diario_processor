@@ -162,8 +162,6 @@ O parser usa regex orientadas a contexto e rótulos documentais para evitar fals
 
 `processor.extrair_metadados_bloco()`
 - identifica tipo de publicação com `parser.identificar_tipo()`
-- classifica relevância com `classifier.classificar_relevancia()`
-- define priorização com `classifier.eh_tipo_prioritario()`
 - apenas blocos contratuais e extratos recebem enriquecimento contratual
 
 ### Extração de eventos
@@ -224,7 +222,6 @@ Campos principais:
 - `fornecedor_normalizado`, `contratante_normalizado`
 - `valores` (JSONB / JSON)
 - `valor_principal`, `vigencia`, `objeto`
-- `relevancia`, `prioritario`
 - `data_processamento`, `data_publicacao`
 
 Relações investigativas:
@@ -237,7 +234,6 @@ Relações investigativas:
 - `contratante_normalizado`
 - `valor_principal`
 - `tipo`
-- `relevancia`
 - `data_processamento`
 - `data_publicacao`
 
@@ -727,8 +723,6 @@ erDiagram
         TEXT cnpj
         JSONB valores
         NUMERIC valor_principal
-        TEXT relevancia
-        BOOLEAN prioritario
         TEXT vigencia
         TEXT objeto
         DATE data_publicacao
