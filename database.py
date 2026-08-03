@@ -34,7 +34,8 @@ def criar_tabela():
         vigencia TEXT,
         objeto TEXT,
         data_processamento TEXT,
-        processo_normalizado TEXT
+        processo_normalizado TEXT,
+        data_publicacao TEXT
     )
     """)
 
@@ -68,6 +69,7 @@ def garantir_colunas_publicacoes(cursor):
         "objeto",
         "data_processamento",
         "processo_normalizado",
+        "data_publicacao",
     }
 
     for coluna in sorted(colunas - colunas_esperadas):
@@ -88,6 +90,7 @@ def garantir_colunas_publicacoes(cursor):
         "fornecedor_normalizado": "TEXT",
         "contratante_normalizado": "TEXT",
         "processo_normalizado": "TEXT",
+        "data_publicacao": "TEXT",
     }
 
     for nome, tipo in colunas_novas.items():
@@ -143,7 +146,8 @@ def salvar_publicacao(
     objeto=None,
     fornecedor_normalizado=None,
     contratante_normalizado=None,
-    processo_normalizado=None
+    processo_normalizado=None,
+    data_publicacao=None,
 ):
     conn = conectar()
     cursor = conn.cursor()
@@ -167,8 +171,9 @@ def salvar_publicacao(
         vigencia,
         objeto,
         data_processamento,
-        processo_normalizado
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        processo_normalizado,
+        data_publicacao
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         diario_id,
         numero_bloco,
@@ -187,7 +192,8 @@ def salvar_publicacao(
         vigencia,
         objeto,
         datetime.now().isoformat(),
-        processo_normalizado
+        processo_normalizado,
+        data_publicacao
     ))
 
     conn.commit()

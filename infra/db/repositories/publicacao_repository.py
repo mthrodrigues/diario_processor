@@ -30,6 +30,7 @@ class PublicacaoRepository:
         fornecedor_normalizado=None,
         contratante_normalizado=None,
         processo_normalizado=None,
+        data_publicacao=None,
     ):
         with self.conn.cursor() as cursor:
             cursor.execute(
@@ -52,10 +53,11 @@ class PublicacaoRepository:
                     vigencia,
                     objeto,
                     data_processamento,
-                    processo_normalizado
+                    processo_normalizado,
+                    data_publicacao
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s::jsonb, %s, %s, %s, %s, %s
+                    %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -77,6 +79,7 @@ class PublicacaoRepository:
                     objeto,
                     datetime.now(),
                     processo_normalizado,
+                    data_publicacao,
                 ),
             )
 

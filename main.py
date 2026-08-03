@@ -492,7 +492,9 @@ def run():
 
                         metadados[
                             "processo_normalizado"
-                        ]
+                        ],
+
+                        data_publicacao=data_publicacao
                     )
 
                 novos += 1

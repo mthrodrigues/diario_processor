@@ -146,6 +146,7 @@ class PostgresInfraTest(unittest.TestCase):
             fornecedor_normalizado="CONDOR",
             contratante_normalizado="MUNICIPIO",
             processo_normalizado="1/2026",
+            data_publicacao="2026-07-30",
         )
 
         sql, params = conn.executed[-1]
@@ -155,7 +156,9 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertEqual(params[0], 1)
         self.assertEqual(params[2], "diario_1.pdf")
         self.assertEqual(params[12], "[100.0]")
-        self.assertEqual(params[-1], "1/2026")
+        self.assertEqual(params[-2], "1/2026")
+        self.assertEqual(params[-1], "2026-07-30")
+        self.assertIn("data_publicacao", sql)
 
     def test_repository_ja_processado(self):
         conn = FakeConnection()

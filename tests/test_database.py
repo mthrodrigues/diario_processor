@@ -35,6 +35,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
             fornecedor_normalizado="CONDOR",
             contratante_normalizado="MUNICIPIO DE TERESOPOLIS",
             processo_normalizado="1/2026",
+            data_publicacao="2026-07-30",
         )
 
         conn = database.conectar()
@@ -42,7 +43,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
         cursor.execute(
             """
             SELECT fornecedor, fornecedor_normalizado, contratante, contratante_normalizado,
-                   processo_normalizado
+                   processo_normalizado, data_publicacao
             FROM publicacoes
             """
         )
@@ -57,8 +58,18 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
                 "Município de Teresópolis",
                 "MUNICIPIO DE TERESOPOLIS",
                 "1/2026",
+                "2026-07-30",
             ),
         )
+
+    def test_criar_tabela_mantem_data_publicacao_em_schema_existente(self):
+        conn = database.conectar()
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(publicacoes)")
+        colunas = {linha[1] for linha in cursor.fetchall()}
+        conn.close()
+
+        self.assertIn("data_publicacao", colunas)
 
     def test_listar_fornecedores_consolidados(self):
         for indice, fornecedor in enumerate(
