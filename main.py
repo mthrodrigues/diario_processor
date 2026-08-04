@@ -4,6 +4,8 @@ from scanner import (
     extrair_data_publicacao
 )
 
+from config import get_postgres_config
+
 from taxonomy.entity_taxonomy import (
 
     PESSOA,
@@ -63,6 +65,8 @@ from taxonomy.event_taxonomy import (
 from canonical_event_builder import (
     build_institutional_event
 )
+
+from consolidador_processos import consolidar_postgres
 
 def run():
 
@@ -512,6 +516,29 @@ def run():
                 )
 
                 traceback.print_exc()
+
+        # =========================================
+        # CAMADA DE CONSOLIDAÇÃO
+        # =========================================
+
+        print("\n========================================")
+        print("Iniciando consolidação do domínio...")
+        print("========================================")
+
+        # A persistência das evidências já foi confirmada. A consolidação
+        # possui uma transação própria e não pode desfazer esses commits.
+        conn.commit()
+
+        try:
+            consolidar_postgres(
+                conn,
+                schema=get_postgres_config().schema,
+            )
+            conn.commit()
+            print("Consolidação de processos concluída.")
+        except Exception:
+            conn.rollback()
+            raise
 
         print("\n========================================")
         print("Resumo da execução:")

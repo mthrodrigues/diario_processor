@@ -39,6 +39,19 @@ def criar_tabela():
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS processos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        processo TEXT NOT NULL,
+        processo_normalizado TEXT NOT NULL UNIQUE,
+        data_primeira_publicacao TEXT,
+        data_ultima_publicacao TEXT,
+        quantidade_publicacoes INTEGER NOT NULL,
+        criado_em TEXT NOT NULL,
+        atualizado_em TEXT NOT NULL
+    )
+    """)
+
     garantir_colunas_publicacoes(cursor)
 
     conn.commit()
