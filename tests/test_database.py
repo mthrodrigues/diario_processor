@@ -36,6 +36,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
             contratante_normalizado="MUNICIPIO DE TERESOPOLIS",
             processo_normalizado="1/2026",
             data_publicacao="2026-07-30",
+            contrato_normalizado="001/2026",
         )
 
         conn = database.conectar()
@@ -44,6 +45,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
             """
             SELECT fornecedor, fornecedor_normalizado, contratante, contratante_normalizado,
                    processo_normalizado, data_publicacao
+                   , contrato_normalizado
             FROM publicacoes
             """
         )
@@ -59,6 +61,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
                 "MUNICIPIO DE TERESOPOLIS",
                 "1/2026",
                 "2026-07-30",
+                "001/2026",
             ),
         )
 
@@ -115,6 +118,7 @@ class DatabaseNormalizacaoTest(unittest.TestCase):
         self.assertIn("idx_publicacoes_fornecedor_normalizado", indices)
         self.assertIn("idx_publicacoes_contratante_normalizado", indices)
         self.assertIn("idx_publicacoes_processo_normalizado", indices)
+        self.assertIn("idx_publicacoes_contrato_normalizado", indices)
         self.assertIn("idx_publicacoes_valor_principal", indices)
         self.assertIn("idx_publicacoes_tipo", indices)
 

@@ -83,9 +83,11 @@ class BackfillTest(unittest.TestCase):
         self.assertEqual(registro["contratante"], "O Município de Teresópolis")
         self.assertEqual(registro["fornecedor_normalizado"], "CONDOR")
         self.assertEqual(registro["contratante_normalizado"], "O MUNICIPIO DE TERESOPOLIS")
+        self.assertEqual(registro["contrato_normalizado"], "002.023.2026")
         self.assertEqual(registro["processo"], "1.387/2026")
         self.assertEqual(registro["processo_normalizado"], "1.387/2026")
         self.assertEqual(registro["contrato"], "002.023.2026")
+        self.assertEqual(registro["contrato_normalizado"], "002.023.2026")
         self.assertEqual(registro["valor_principal"], 41985.0)
         self.assertEqual(registro["vigencia"], "180 dias")
         self.assertEqual(registro["objeto"], "Aquisição de equipamento")
@@ -122,6 +124,7 @@ class BackfillTest(unittest.TestCase):
 
         self.assertEqual(registro["fornecedor_normalizado"], "CONDOR")
         self.assertEqual(registro["contratante_normalizado"], "O MUNICIPIO DE TERESOPOLIS")
+        self.assertEqual(registro["contrato_normalizado"], "002.023.2026")
         self.assertIsNone(registro["valor_principal"])
         self.assertIsNone(registro["objeto"])
 
@@ -137,6 +140,7 @@ class BackfillTest(unittest.TestCase):
         self.assertIsNone(registro["fornecedor_normalizado"])
         self.assertIsNone(registro["contratante_normalizado"])
         self.assertIsNone(registro["processo_normalizado"])
+        self.assertIsNone(registro["contrato_normalizado"])
         self.assertEqual(registro["valor_principal"], 41985.0)
 
     def test_limit_restringe_quantidade_analisada(self):

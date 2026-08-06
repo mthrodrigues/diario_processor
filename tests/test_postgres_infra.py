@@ -123,6 +123,7 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn('"diario".publicacoes', sql_executado)
         self.assertIn("idx_diario_publicacoes_fornecedor_normalizado", sql_executado)
         self.assertIn("idx_diario_publicacoes_processo_normalizado", sql_executado)
+        self.assertIn("idx_diario_publicacoes_contrato_normalizado", sql_executado)
 
     def test_repository_salvar_publicacao_usa_schema_dedicado(self):
         conn = FakeConnection()
@@ -147,6 +148,7 @@ class PostgresInfraTest(unittest.TestCase):
             contratante_normalizado="MUNICIPIO",
             processo_normalizado="1/2026",
             data_publicacao="2026-07-30",
+            contrato_normalizado="001/2026",
         )
 
         sql, params = conn.executed[-1]
@@ -155,7 +157,8 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn("%s::jsonb", sql)
         self.assertEqual(params[0], 1)
         self.assertEqual(params[2], "diario_1.pdf")
-        self.assertEqual(params[12], "[100.0]")
+        self.assertEqual(params[7], "001/2026")
+        self.assertEqual(params[13], "[100.0]")
         self.assertEqual(params[-2], "1/2026")
         self.assertEqual(params[-1], "2026-07-30")
         self.assertIn("data_publicacao", sql)

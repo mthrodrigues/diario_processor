@@ -15,6 +15,7 @@ class ProcessorBlocoTest(unittest.TestCase):
         metadados = extrair_metadados_bloco(texto)
 
         self.assertEqual(metadados["tipo"], "contrato")
+        self.assertEqual(metadados["contrato_normalizado"], "002.023.2026")
         self.assertEqual(metadados["processo_normalizado"], "1.387/2026")
         self.assertEqual(metadados["fornecedor"], "Condor S.A. Indústria Química")
         self.assertEqual(metadados["fornecedor_normalizado"], "CONDOR")
@@ -39,6 +40,7 @@ class ProcessorBlocoTest(unittest.TestCase):
         self.assertIsNone(metadados["contratante"])
         self.assertIsNone(metadados["contratante_normalizado"])
         self.assertIsNone(metadados["processo_normalizado"])
+        self.assertIsNone(metadados["contrato_normalizado"])
         self.assertIsNone(metadados["valor_principal"])
         self.assertIsNone(metadados["vigencia"])
         self.assertIsNone(metadados["objeto"])

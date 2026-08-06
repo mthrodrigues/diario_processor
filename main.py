@@ -498,7 +498,10 @@ def run():
                             "processo_normalizado"
                         ],
 
-                        data_publicacao=data_publicacao
+                        data_publicacao=data_publicacao,
+                        contrato_normalizado=metadados[
+                            "contrato_normalizado"
+                        ],
                     )
 
                 novos += 1

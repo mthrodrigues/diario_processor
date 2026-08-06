@@ -100,3 +100,15 @@ def normalize_processo(processo):
     normalizado = re.sub(r"[,.]+\s*$", "", normalizado)
 
     return normalizado.strip() or None
+
+
+def normalize_contrato(contrato):
+    """Produz a identidade textual canônica de um contrato."""
+    if contrato is None or not isinstance(contrato, str):
+        return None
+
+    normalizado = contrato.strip()
+    normalizado = re.sub(r"\s*([./-])\s*", r"\1", normalizado)
+    normalizado = re.sub(r"[.,;:]+\s*$", "", normalizado)
+
+    return normalizado.strip() or None

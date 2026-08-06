@@ -4,7 +4,12 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from database import conectar, criar_tabela
-from normalizer import normalize_contratante, normalize_fornecedor, normalize_processo
+from normalizer import (
+    normalize_contratante,
+    normalize_contrato,
+    normalize_fornecedor,
+    normalize_processo,
+)
 from processor import extrair_metadados_bloco
 
 
@@ -25,6 +30,7 @@ CAMPOS_NORMALIZACAO = [
     "fornecedor_normalizado",
     "contratante_normalizado",
     "processo_normalizado",
+    "contrato_normalizado",
 ]
 
 CAMPOS_BACKFILL = CAMPOS_ANALITICOS + CAMPOS_NORMALIZACAO
@@ -165,6 +171,17 @@ def _preparar_campos_normalizados(registro, metadados, atualizacoes):
 
         if not _campo_vazio(processo_normalizado):
             atualizacoes["processo_normalizado"] = processo_normalizado
+
+    if _campo_vazio(registro.get("contrato_normalizado")):
+        contrato_raw = _primeiro_valor(
+            registro.get("contrato"),
+            atualizacoes.get("contrato"),
+            metadados.get("contrato"),
+        )
+        contrato_normalizado = normalize_contrato(contrato_raw)
+
+        if not _campo_vazio(contrato_normalizado):
+            atualizacoes["contrato_normalizado"] = contrato_normalizado
 
 
 def _buscar_registros(conn, limit=None, campos_alvo=None):

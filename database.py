@@ -24,6 +24,7 @@ def criar_tabela():
         tipo TEXT,
         processo TEXT,
         contrato TEXT,
+        contrato_normalizado TEXT,
         contratante TEXT,
         fornecedor TEXT,
         fornecedor_normalizado TEXT,
@@ -71,6 +72,7 @@ def garantir_colunas_publicacoes(cursor):
         "tipo",
         "processo",
         "contrato",
+        "contrato_normalizado",
         "contratante",
         "fornecedor",
         "fornecedor_normalizado",
@@ -103,6 +105,7 @@ def garantir_colunas_publicacoes(cursor):
         "fornecedor_normalizado": "TEXT",
         "contratante_normalizado": "TEXT",
         "processo_normalizado": "TEXT",
+        "contrato_normalizado": "TEXT",
         "data_publicacao": "TEXT",
     }
 
@@ -123,6 +126,11 @@ def garantir_colunas_publicacoes(cursor):
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_publicacoes_processo_normalizado
     ON publicacoes (processo_normalizado)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_publicacoes_contrato_normalizado
+    ON publicacoes (contrato_normalizado)
     """)
 
     cursor.execute("""
@@ -161,6 +169,7 @@ def salvar_publicacao(
     contratante_normalizado=None,
     processo_normalizado=None,
     data_publicacao=None,
+    contrato_normalizado=None,
 ):
     conn = conectar()
     cursor = conn.cursor()
@@ -174,6 +183,7 @@ def salvar_publicacao(
         tipo,
         processo,
         contrato,
+        contrato_normalizado,
         contratante,
         fornecedor,
         fornecedor_normalizado,
@@ -186,7 +196,7 @@ def salvar_publicacao(
         data_processamento,
         processo_normalizado,
         data_publicacao
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         diario_id,
         numero_bloco,
@@ -195,6 +205,7 @@ def salvar_publicacao(
         tipo,
         processo,
         contrato,
+        contrato_normalizado,
         contratante,
         fornecedor,
         fornecedor_normalizado,
@@ -206,7 +217,7 @@ def salvar_publicacao(
         objeto,
         datetime.now().isoformat(),
         processo_normalizado,
-        data_publicacao
+        data_publicacao,
     ))
 
     conn.commit()

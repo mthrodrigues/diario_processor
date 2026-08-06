@@ -2,6 +2,7 @@ import unittest
 
 from normalizer import (
     normalize_contratante,
+    normalize_contrato,
     normalize_entidade,
     normalize_fornecedor,
     normalize_processo,
@@ -63,6 +64,16 @@ class NormalizerTest(unittest.TestCase):
             "04105.0000001409/2024",
         )
         self.assertEqual(normalize_processo("52/26"), "52/26")
+
+    def test_normaliza_contrato_sem_alterar_identidade(self):
+        self.assertIsNone(normalize_contrato(None))
+        self.assertIsNone(normalize_contrato(""))
+        self.assertIsNone(normalize_contrato("   "))
+        self.assertEqual(normalize_contrato(" 002 . 023 / 2026, "), "002.023/2026")
+        self.assertEqual(normalize_contrato("002.023.2026."), "002.023.2026")
+        self.assertEqual(normalize_contrato("002.023.2026;"), "002.023.2026")
+        self.assertEqual(normalize_contrato("002.023.2026"), "002.023.2026")
+        self.assertEqual(normalize_contrato("000.014.2026"), "000.014.2026")
 
 
 if __name__ == "__main__":

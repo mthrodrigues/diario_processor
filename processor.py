@@ -1,5 +1,10 @@
 from classifier import deve_enriquecer_contratual
-from normalizer import normalize_contratante, normalize_fornecedor, normalize_processo
+from normalizer import (
+    normalize_contratante,
+    normalize_contrato,
+    normalize_fornecedor,
+    normalize_processo,
+)
 from parser import (
     extrair_cnpj,
     extrair_contratante,
@@ -21,6 +26,7 @@ def extrair_metadados_bloco(texto_bloco):
         "processo": extrair_processo(texto_bloco),
         "processo_normalizado": None,
         "contrato": extrair_contrato(texto_bloco),
+        "contrato_normalizado": None,
         "cnpj": extrair_cnpj(texto_bloco),
         "valores": extrair_valores(texto_bloco),
         "contratante": None,
@@ -33,6 +39,7 @@ def extrair_metadados_bloco(texto_bloco):
     }
 
     metadados["processo_normalizado"] = normalize_processo(metadados["processo"])
+    metadados["contrato_normalizado"] = normalize_contrato(metadados["contrato"])
 
     if deve_enriquecer_contratual(tipo):
         contratante = extrair_contratante(texto_bloco)
