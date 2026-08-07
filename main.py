@@ -174,6 +174,39 @@ def run():
                         bloco
                     )
 
+                    # ================================
+                    # Enriquecimento Contextual (Regra 001)
+                    # ================================
+                    # Se aplicável, herda contratante institucional do bloco anterior
+                    try:
+                        from contextual_enrichment import aplicar_regra_001_heranca_contratante
+
+                        prev_block_text = previous_bloco if 'previous_bloco' in locals() else None
+                        prev_metadados = previous_metadados if 'previous_metadados' in locals() else None
+                        prev_num = previous_numero if 'previous_numero' in locals() else None
+                        curr_num = i
+
+                        updated_metadados, applied, audit = aplicar_regra_001_heranca_contratante(
+                            prev_block_text,
+                            prev_metadados,
+                            prev_num,
+                            bloco,
+                            metadados,
+                            curr_num,
+                            str(pdf)
+                        )
+
+                        if applied:
+                            metadados = updated_metadados
+                    except Exception:
+                        # silenciar falhas do enriquecimento para não interromper o pipeline
+                        pass
+
+                    # 保存前保留当前 bloco作为 "previous" para próxima iteração
+                    previous_bloco = bloco
+                    previous_metadados = metadados
+                    previous_numero = i
+
                     # =========================================
                     # EVENTOS
                     # =========================================

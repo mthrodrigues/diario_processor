@@ -1,0 +1,6 @@
+pdf_path,publication_type,block_index,previous_block_index,contract_number_previous,contract_number_current,process_previous,process_current,has_institutional_contratante_previous,has_institutional_contratante_current,has_pelo_contratante_current,persisted_block_match
+C:\automacoes\diario_bot\pdfs\2026\06\diario_3375.pdf,aditivo,4,3,008.009.2025,,,1.438/2025,False,False,True,
+C:\automacoes\diario_bot\pdfs\2026\06\diario_3377.pdf,aditivo,3,2,005.013.2025,005.013.2025,,733/2025,False,False,True,
+C:\automacoes\diario_bot\pdfs\2026\07\diario_3388.pdf,contrato,5,4,008.023.2026,,21.580/2026,21.580/2026,False,False,True,
+C:\automacoes\diario_bot\pdfs\2026\08\diario_3413.pdf,aditivo,3,2,004.008.2025,,,2.693/2025,False,False,True,
+C:\automacoes\diario_bot\pdfs\2026\08\diario_3417.pdf,contrato,4,3,002.031.2026,,,2.606/2026,False,False,True,

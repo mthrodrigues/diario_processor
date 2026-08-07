@@ -1,0 +1,40 @@
+{
+  "total_pdfs": 205,
+  "total_blocks": 2047,
+  "total_contract_like_blocks": 452,
+  "total_occurrences": 5,
+  "occurrences_by_document_type": {
+    "outro": 0,
+    "aviso": 0,
+    "edital": 0,
+    "termo": 0,
+    "portaria": 0,
+    "aditivo": 3,
+    "dispensa": 0,
+    "apostilamento": 0,
+    "contrato": 2,
+    "homologacao": 0,
+    "inexigibilidade": 0,
+    "licitacao": 0,
+    "empenho": 0,
+    "extrato": 0,
+    "errata": 0
+  },
+  "percentage_by_document_type": {
+    "outro": 0.0,
+    "aviso": 0.0,
+    "edital": 0.0,
+    "termo": 0.0,
+    "portaria": 0.0,
+    "aditivo": 2.112676056338028,
+    "dispensa": 0.0,
+    "apostilamento": 0.0,
+    "contrato": 1.5873015873015872,
+    "homologacao": 0.0,
+    "inexigibilidade": 0.0,
+    "licitacao": 0.0,
+    "empenho": 0.0,
+    "extrato": 0.0,
+    "errata": 0.0
+  }
+}
