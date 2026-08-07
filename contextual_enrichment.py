@@ -2,7 +2,7 @@ import re
 import json
 from datetime import datetime, timezone
 
-from normalizer import normalize_contrato, normalize_processo
+from normalizer import normalize_contrato, normalize_processo, normalize_contratante
 
 RE_INSTITUTIONAL_CONTRATANTE = re.compile(r'(?i)(?<!PELO\s)(?<!PELA\s)CONTRATANTE\s*:', re.IGNORECASE)
 RE_PELO_CONTRATANTE = re.compile(r'(?i)PELO\s+CONTRATANTE\b', re.IGNORECASE)
@@ -136,6 +136,7 @@ def aplicar_regra_001_heranca_contratante(prev_block_text, prev_metadados, prev_
     previous_value = curr_contratante
     updated = dict(curr_metadados)
     updated['contratante'] = prev_contratante
+    updated['contratante_normalizado'] = normalize_contratante(prev_contratante)
 
     applied = True
 

@@ -50,7 +50,7 @@ def test_integration_enrichment_diario_3375():
     before = metadados_before[idx]
     after, applied_flag, audit = metadados_after[idx]
 
-    # Confirm only 'contratante' changed between before and after
+    # Confirm only 'contratante' and 'contratante_normalizado' changed between before and after (if EC applied)
     for key in before.keys():
         if key == 'contratante':
             # if the rule applied, contratante should be the one from previous block
@@ -60,5 +60,14 @@ def test_integration_enrichment_diario_3375():
             else:
                 # if not applied, it should remain the same
                 assert after['contratante'] == before['contratante']
+        elif key == 'contratante_normalizado':
+            # contratante_normalizado should be recalculated only if EC applied
+            if applied_flag:
+                from normalizer import normalize_contratante
+                expected_normalized = normalize_contratante(after['contratante'])
+                assert after['contratante_normalizado'] == expected_normalized
+            else:
+                # if not applied, it should remain the same
+                assert after['contratante_normalizado'] == before['contratante_normalizado']
         else:
             assert after[key] == before[key]
