@@ -67,6 +67,7 @@ from canonical_event_builder import (
 )
 
 from consolidador_processos import consolidar_postgres
+from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
 def run():
 
@@ -539,6 +540,17 @@ def run():
             )
             conn.commit()
             print("Consolidação de processos concluída.")
+        except Exception:
+            conn.rollback()
+            raise
+
+        try:
+            consolidar_contratos_postgres(
+                conn,
+                schema=get_postgres_config().schema,
+            )
+            conn.commit()
+            print("Consolidação de contratos concluída.")
         except Exception:
             conn.rollback()
             raise

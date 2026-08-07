@@ -6,6 +6,7 @@ from config import PostgresConfig, get_postgres_config
 from infra.db.connection import PostgresConnectionPool
 from infra.db.migrations.runner import quote_ident, run_migrations
 from infra.db.repositories.publicacao_repository import PublicacaoRepository
+from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
 
 class FakeCursor:
@@ -124,6 +125,30 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn("idx_diario_publicacoes_fornecedor_normalizado", sql_executado)
         self.assertIn("idx_diario_publicacoes_processo_normalizado", sql_executado)
         self.assertIn("idx_diario_publicacoes_contrato_normalizado", sql_executado)
+
+    def test_run_migrations_cria_contratos_e_indice(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.append([])
+
+        run_migrations(conn, schema="diario")
+
+        sql_executado = "\n".join(sql for sql, _params in conn.executed)
+
+        self.assertIn('"diario".contratos', sql_executado)
+        self.assertIn("idx_diario_contratos_contrato_normalizado", sql_executado)
+
+    def test_consolidador_contratos_usa_sql_e_parametros_postgres(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.append([
+            ("001/2026", "001/2026", "2026-01-01", "2026-02-01", 2)
+        ])
+
+        self.assertEqual(consolidar_contratos_postgres(conn, schema="diario"), 1)
+
+        sql, params = conn.executed[-1]
+        self.assertIn('"diario".contratos', sql)
+        self.assertIn('ON CONFLICT (contrato_normalizado)', sql)
+        self.assertEqual(params[:5], ("001/2026", "001/2026", "2026-01-01", "2026-02-01", 2))
 
     def test_repository_salvar_publicacao_usa_schema_dedicado(self):
         conn = FakeConnection()

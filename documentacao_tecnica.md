@@ -1,876 +1,632 @@
-# Diário Processor — Documentação Técnica Completa
+# DOCUMENTACAO TECNICA OFICIAL
 
-## 1. Visão Geral do Projeto
+## 1. Visao Geral
 
-### Objetivo do sistema
-O `diario_processor` transforma Diários Oficiais municipais em ativos de inteligência institucional.
+O `diario_processor` e um pipeline de inteligencia documental para Diarios Oficiais municipais. O objetivo atual e converter PDFs publicos em evidencia documental preservada, metadados estruturados, eventos institucionais, relacoes semanticas e catalogos consolidados de processos e contratos.
 
-Ele converte PDFs públicos em:
-- eventos institucionais estruturados
-- entidades normalizadas
-- relações semânticas
-- timelines investigativas
+O problema que a aplicacao resolve e a transformacao de publicacoes oficiais, originalmente espalhadas em texto bruto e com baixa estrutura, em uma base consultavel e rastreavel. O sistema preserva o texto original de cada bloco e trabalha em cima dele para extrair informacoes por contexto documental.
 
-O foco é extrair padrões contratuais, movimentações administrativas e vínculos de servidores públicos.
+Principios arquiteturais efetivamente adotados:
 
-### Papel dentro do ecossistema
-O projeto é um motor de ingestão e normalização documental em um ecossistema maior de inteligência institucional.
+- Evidencia documental vem antes de interpretacao.
+- Cada publicacao e tratada como bloco independente.
+- O texto bruto do bloco nunca e descartado.
+- Extracoes priorizam contexto documental, nao correspondencia ampla.
+- Processos e contratos sao catalogos consolidados, nao atributos soltos.
+- Pessoas, empresas e orgaos sao entidades nominativas.
+- Relacionamentos e eventos guardam a origem documental.
+- Consolidacao e idempotente e baseada em chaves normalizadas.
+- A arquitetura aceita incrementalidade, mas o fluxo principal atual reprocessa tudo por configuracao fixa.
 
-Ele ocupa a fase de:
-- ingestão de dados públicos
-- transformação documental
-- persistência semântica
-- apoio a análise e investigação
+## 2. Arquitetura Geral
 
-### Contexto investigativo
-O `diario_processor` foi desenhado para servir investigações de integridade pública, compliance e transparência.
-Ele não é apenas um parser de PDF, mas uma camada que converte documentos em evidências pesquisáveis:
-- quem contratou quem
-- quais contratos foram publicados
-- nomeações/exonerações em órgãos públicos
-- ligações entre pessoas e órgãos
-
-### Arquitetura geral
-A arquitetura é modular e orientada a pipelines:
-- `scanner` localiza PDFs no diretório
-- `extractor` converte PDF em texto bruto
-- `parser` segmenta e extrai campos contextuais
-- `processor` classifica e monta metadados
-- `events` identifica eventos institucionais
-- repositórios persistem publicações, eventos, entidades, relações e timelines
-- `InstitutionalEventOutboxRepository` entrega eventos canônicos a um barramento analítico
-
----
-
-## 2. Arquitetura do Sistema
-
-### Estrutura de pastas
-
-- `main.py` — orquestra o pipeline de ingestão
-- `scanner.py` — detecção de PDFs e extração de metadados do arquivo
-- `extractor.py` — extração textual de PDF com `pdfplumber` e correção de encoding `ftfy`
-- `parser.py` — segmentação de publicações e extração documental
-- `processor.py` — extração de metadados contratuais e classificação
-- `events.py` — identificação de eventos institucionais e evidências
-- `canonical_event_builder.py` — normalização de eventos antes da publicação
-- `normalizer.py` / `normalizers/entity_normalizer.py` — normalização de nomes e entidades
-- `infra/db/connection.py` — conexão PostgreSQL com pool e retry
-- `infra/db/repositories/` — repositórios de persistência e consulta
-- `infra/db/migrations/` — migrações SQL para o modelo relacional
-- `analytics.py` — consultas analíticas legadas em SQLite
-- `config.py` — configuração de ambiente e variáveis
-
-### Responsabilidades dos módulos
-
-- `scanner.py`: localiza PDFs e extrai `diario_id` e data de publicação
-- `extractor.py`: lê PDF e produz texto bruto
-- `parser.py`: segmenta o texto em publicações e mapeia campos como processo, contrato, fornecedor, contratante, vigência, valores
-- `processor.py`: classifica tipos, define relevância e enriquece apenas blocos contratuais prioritários
-- `events.py`: identifica eventos de contratação, nomeação e exoneração
-- `canonical_event_builder.py`: gera um evento canônico desacoplado para publicação em outbox
-- `normalizer.py`: normaliza nomes de entidades contratuais
-- `normalizers/entity_normalizer.py`: normaliza nomes de entidades públicas e pessoas para deduplicação
-- `infra/db/...`: persistência e construção de modelos investigativos
-
-### Fluxo completo de processamento
-
-1. `main.py` chama `listar_pdfs()` em `scanner.py`
-2. Para cada PDF não processado, extrai texto com `extractor.extrair_texto()`
-3. Identifica `data_publicacao` pelo texto
-4. Segmenta o Diário em blocos com `parser.segmentar_publicacoes()`
-5. Extrai metadados contratuais com `processor.extrair_metadados_bloco()`
-6. Detecta eventos institucionais em `events.extrair_eventos_bloco()`
-7. Persiste evento em `EventoRepository.salvar_evento()`
-8. Publica o evento canônico em `InstitutionalEventOutboxRepository.publish()`
-9. Resolve/ou cria entidades em `EntityRepository.obter_ou_criar()`
-10. Persiste relações em `EntityRelationshipRepository.criar_relacao()`
-11. Atualiza timelines com `TimelineRepository.abrir_vinculo()` e `fechar_vinculo()`
-12. Persiste a publicação raw em `PublicacaoRepository.salvar_publicacao()`
-
-### Pipeline documental
-
-- `scanner` detecta e identifica
-- `extractor` converte PDF para texto
-- `parser` segmenta e identifica blocos publicacionais
-- `processor` extrai tipo, processo, contrato, CNPJ, valores, contratante, fornecedor, vigência, objeto
-- persistência raw em `publicacoes`
-
-### Pipeline semântico
-
-- `events` converte conteúdo em eventos estruturados
-- `canonical_event_builder` cria payload canônico
-- repositórios de entidades e relações constroem o grafo semântico
-- `InstitutionalEventOutboxRepository` integra com consumidores analíticos
-
-### Pipeline investigativo
-
-- timelines de vínculos são atualizadas
-- relações entre entidade-pessoa e órgão são criadas
-- eventos contratuais e funcionais ficam disponíveis para reconstrução temporal
-- relatórios analíticos podem apoiar investigação de recorrência e movimentação
-
----
-
-## 3. Fluxo de Processamento
-
-### Scanner de PDFs
-
-`scanner.listar_pdfs()`
-- usa `BASE_DIARIO_PATH` do `config.py`
-- busca recursivamente arquivos `*.pdf`
-- ordena para garantir ingestão determinística
-
-`scanner.extrair_diario_id(pdf_path)`
-- extrai `diario_id` do nome do arquivo, assumindo padrão `diario_<id>.pdf`
-
-`scanner.extrair_data_publicacao(texto)`
-- procura cabeçalho de edição do Diário Oficial
-- identifica dia/mês/ano do texto inicial
-- retorna `datetime.date`
-
-### Extração textual
-
-`extractor.extrair_texto(pdf_path)`
-- usa `pdfplumber.open()` para ler cada página
-- aplica `fix_text()` para correção de encoding e caracteres corrompidos
-- concatena páginas com separador de linha
-
-### Segmentação
-
-`parser.segmentar_publicacoes(texto)`
-- divide o Diário em blocos/publicações
-- identifica inícios por marcadores como `CONTRATO`, `EXTRATO`, `AVISO`, `PORTARIA`, `TERMO`, `PREGÃO`, `EDITAL`, `DISPENSA`, `INEXIGIBILIDADE`, `ERRATA`, `HOMOLOGAÇÃO`, `ADJUDICAÇÃO`
-- ignora linhas boilerplate de rodapé/cabeçalho
-- tenta não reiniciar blocos em transições de título de linha
-
-### Parsing
-
-`parser` também contém funções de extração contextual:
-- `extrair_contrato()`
-- `extrair_processo()`
-- `extrair_cnpj()`
-- `extrair_fornecedor()`
-- `extrair_contratante()`
-- `extrair_objeto()`
-- `extrair_vigencia()`
-- `extrair_valor_principal()`
-- `extrair_valores()`
-
-O parser usa regex orientadas a contexto e rótulos documentais para evitar falsos positivos.
-
-### Classificação
-
-`processor.extrair_metadados_bloco()`
-- identifica tipo de publicação com `parser.identificar_tipo()`
-- apenas blocos contratuais e extratos recebem enriquecimento contratual
-
-### Extração de eventos
-
-`events.extrair_eventos_bloco()`
-- detecta eventos a partir de metadados e texto do bloco
-- atualmente identifica pelo menos:
-  - contratação pública (`public_contract`)
-  - nomeação (`appointment`)
-  - exoneração (`exoneration`)
-- para eventos contratuais, a origem é o órgão público e o destino é a empresa
-- para eventos funcionais, o agente é servidor/pessoa e o órgão é o destino
-- captura evidências textuais com `diario_id`, `numero_bloco` e trecho do texto
-
-### Entity resolution
-
-`EntityRepository.obter_ou_criar()`
-- normaliza nomes com `normalizers.entity_normalizer.normalize_entity_name()`
-- resolve ou insere entidades únicas no schema `diario.entidades`
-- evita duplicação semântica por `tipo_entidade` + `nome_normalizado`
-
-### Criação de relações
-
-`EventoRepository.relacionar_entidade()`
-- persiste vínculos entre `evento` e `entidade`
-- registra papel como:
-  - `contracting_org`
-  - `public_agent`
-  - `supplier`
-
-`EntityRelationshipRepository.criar_relacao()`
-- persiste relações semânticas entre entidades
-- campos: `entidade_origem_id`, `entidade_destino_id`, `tipo_relacao`, `diario_id`, `data_publicacao`
-- usa `taxonomy.relation_resolver.resolver_relacao_evento()` para mapear eventos a relações
-
-### Timelines
-
-`TimelineRepository` gerencia vínculos investigativos de entidades públicas:
-- `abrir_vinculo()` cria histórico ativo de lotação ou nomeação
-- `fechar_vinculo()` encerra o vínculo quando ocorre exoneração
-- os registros mantêm `data_inicio`, `data_fim`, `evento_inicio_id`, `evento_fim_id` e `ativo`
-
----
-
-## 4. Modelo de Dados
-
-### publicacoes
-
-Finalidade:
-- armazena cada bloco/publicação do Diário
-- preserva texto bruto e metadados extraídos
-
-Campos principais:
-- `diario_id`, `numero_bloco`, `arquivo_path`
-- `texto_bloco`
-- `tipo`, `processo`, `contrato`
-- `contratante`, `fornecedor`, `cnpj`
-- `fornecedor_normalizado`, `contratante_normalizado`
-- `valores` (JSONB / JSON)
-- `valor_principal`, `vigencia`, `objeto`
-- `data_processamento`, `data_publicacao`
-
-Relações investigativas:
-- serve como fonte de evidência documental
-- alimenta extração de eventos e análises contratuais
-
-Índices:
-- `arquivo_path`
-- `fornecedor_normalizado`
-- `contratante_normalizado`
-- `valor_principal`
-- `tipo`
-- `data_processamento`
-- `data_publicacao`
-
-Temporalidade:
-- `data_publicacao` representa a data do Diário Oficial
-- `data_processamento` representa a importação do dado
-
-### eventos
-
-Finalidade:
-- registra eventos institucionais extraídos a partir de blocos
-- abstrai ações como nomeação, exoneração e contratação
-
-Campos principais:
-- `tipo_evento`
-- `agente_nome`, `cargo`, `orgao`
-- `entidade_origem`, `entidade_destino`
-- `processo`, `contrato`, `valor`
-- `diario_id`, `numero_bloco`
-- `evidencia_textual`, `data_publicacao`
-
-Relação investigativa:
-- eventos são nós centrais no grafo investigativo
-- permitem reconstruir quem fez o quê e quando
-
-Índices:
-- `tipo_evento`
-- `agente_nome`
-- `orgao`
-- `diario_id`
-- `contrato`
-- `processo`
-- `data_publicacao`
-
-### entidades
-
-Finalidade:
-- representa pessoas, empresas e órgãos públicos
-- suporta deduplicação semântica
-
-Campos:
-- `tipo_entidade` (`person`, `company`, `public_agency`)
-- `nome_original`
-- `nome_normalizado`
-
-Relações investigativas:
-- entidades são vértices do grafo
-- permitem cruzar eventos, contratos e relações
-
-Índices:
-- `tipo_entidade`
-- `nome_normalizado`
-- `UNIQUE(tipo_entidade, nome_normalizado)`
-
-### evento_entidades
-
-Finalidade:
-- mapeia quais entidades participam de cada evento
-- registra o papel da entidade no evento
-
-Campos:
-- `evento_id`
-- `entidade_id`
-- `papel`
-
-Relações investigativas:
-- conecta eventos a entidades
-- permite recuperar contextos como fornecedor, órgão e agente
-
-Índices:
-- `evento_id`
-- `entidade_id`
-- `papel`
-
-### entity_relationships
-
-Finalidade:
-- captura relações semânticas persistentes entre entidades
-- fornece material para grafo investigativo e consultas de relacionamento
-
-Campos:
-- `entidade_origem_id`
-- `entidade_destino_id`
-- `tipo_relacao`
-- `diario_id`
-- `data_publicacao`
-
-Relações investigativas:
-- representa conjunto de pares semânticos, como pessoa → órgão
-- utiliza tipos de relacionamento normalizados
-
-Índices:
-- `entidade_origem_id`
-- `entidade_destino_id`
-- `tipo_relacao`
-- `data_publicacao`
-
-### entity_timelines
-
-Finalidade:
-- modela a história temporal de vínculos institucionais
-- fundamenta investigações de permanência e transição
-
-Campos:
-- `entidade_id`
-- `orgao_entidade_id`
-- `tipo_vinculo`
-- `data_inicio`, `data_fim`
-- `ativo`
-- `evento_inicio_id`, `evento_fim_id`
-
-Relações investigativas:
-- representa trajetórias funcionais de pessoas em órgãos
-- permite identificar vínculos ativos e encerrados
-
-Índices:
-- `entidade_id`
-- `orgao_entidade_id`
-- `ativo`
-- `(data_inicio, data_fim)`
-
----
-
-## 5. Camadas de Inteligência
-
-### Document Intelligence
-
-- preserva texto bruto de cada bloco
-- usa segmentação de publicações baseada em marcadores documentais
-- extrai metadados confiáveis com rótulos contextuais
-- minimiza falsos positivos via heurísticas semânticas
-
-### Event Intelligence
-
-- transforma conteúdo documental em eventos estruturados
-- abstrai ações institucionais replicáveis
-- produz payloads canônicos para downstream
-- permite classificação de tipo e relevância
-
-### Identity Intelligence
-
-- normaliza entidades por tipo e nome
-- resolve variações de escrita, sufixos e ruído documental
-- garante unicidade semântica em `diario.entidades`
-- suporta deduplicação investigativa
-
-### Relationship Intelligence
-
-- converte eventos em relações entre entidades
-- utiliza um taxonomia de tipos de relação
-- preserva origem documental do relacionamento
-- cria um grafo semântico consultável
-
-### Timeline Intelligence
-
-- materializa a sequência temporal de vínculos
-- abre e fecha vínculos com eventos de nomeação/exoneração
-- identifica vínculos ativos
-- permite reconstrução histórica de trajetórias
-
----
-
-## 6. Taxonomia Investigativa
-
-### Tipos de eventos
-
-A taxonomia implementada em `taxonomy/event_taxonomy.py` inclui:
-- `appointment` — nomeação
-- `exoneration` — exoneração
-- `public_contract` — contratação pública
-- `contract_amendment` — aditivo/alteração contratual
-- `bidding` — licitação
-- `bidding_waiver` — dispensa/inexigibilidade
-- `designation` — designação
-
-Além disso, há compatibilidade com rótulos legados:
-- `nomeacao`, `exoneracao`, `aditivo`, `dispensa`, `licitacao`, etc.
-
-### Tipos de relações
-
-Relações mapeadas:
-- `appointed`
-- `dismissed`
-- `contracted`
-- `authorized`
-- `designated_to`
-- `participated_in_contract`
-- `related_to` (fallback)
-
-### Semântica institucional
-
-O sistema distingue:
-- entidade origem: órgão público ou contratante
-- entidade destino: fornecedor, empresa ou órgão receptor
-- agente público: pessoa nomeada ou exonerada
-
-A semântica institucional é estabelecida no `resolver_relacao_evento()`.
-
-### Taxonomia atual
-
-A taxonomia atual é leve, baseada em eventos documentais e em mapeamento de relação:
-- eventos nomeação → relacionamento `appointed`
-- eventos exoneração → relacionamento `dismissed`
-- eventos contratuais → relacionamento `contracted`
-- licitação / dispensa → relações `participated_in_contract` ou `authorized`
-
----
-
-## 7. Entity Resolution
-
-### Normalização
-
-A normalização de entidades é feita em `normalizers/entity_normalizer.py`:
-- remove acentos
-- converte para uppercase
-- expande abreviações administrativas (`SEC` → `SECRETARIA`)
-- remove prefixos de ruído (`SR`, `DR`, `O SERVIDOR`, etc.)
-- remove pontuação e espaços extras
-- elimina termos irrelevantes como `DE`, `DO`, `DA`
-
-### Canonicalização
-
-- `EntityRepository.obter_ou_criar()` usa `tipo_entidade` + `nome_normalizado`
-- evita multiplicidade de registros para a mesma pessoa ou órgão
-
-### Limpeza semântica
-
-- parser identifica e ignora candidatos de fornecedor que parecem orgãos ou boilerplate
-- normalização de fornecedor/contratante diferencia `Fornecedor` de `Contrato`
-
-### Deduplicação
-
-- `diario.entidades` possui índice único semântico em `(tipo_entidade, nome_normalizado)`
-- entidades conflitantes são resolvidas por norma de nome canônico
-- o grafo de relações reconcilia múltiplos eventos para a mesma entidade canônica
-
----
-
-## 8. Timeline Intelligence
-
-### Abertura de vínculo
-
-`TimelineRepository.abrir_vinculo()` é chamado quando um evento de nomeação gera um relacionamento `appointed`.
-
-O vínculo gerado contém:
-- `entidade_id` (pessoa)
-- `orgao_entidade_id` (órgão/destino)
-- `tipo_vinculo` = `LOTACAO`
-- `data_inicio` = `data_publicacao`
-- `evento_inicio_id`
-- `ativo` = TRUE
-
-### Encerramento
-
-`TimelineRepository.fechar_vinculo()` fecha vínculos ativos quando um evento `dismissed` é registrado.
-
-Ele atualiza:
-- `data_fim`
-- `evento_fim_id`
-- `ativo` = FALSE
-
-### Vínculos ativos
-
-A tabela `entity_timelines` permite consultas de vínculos ativos e históricos.
-
-Vínculos ativos são aqueles com `ativo = TRUE` e sem `data_fim` definido.
-
-### Histórico institucional
-
-A timeline fornece a estrutura para reconstruir trajetórias funcionais de agentes públicos em órgãos.
-
-Ela é essencial para:
-- entender permanência de servidores
-- detectar rotatividade em órgãos
-- conectar nomeações e exonerações cronologicamente
-
----
-
-## 9. Explainability
-
-### Evidência documental
-
-Cada evento carrega um campo `evidencia_textual` com trecho do bloco.
-A publicação original (`diario_id`, `numero_bloco`, `texto`) é preservada.
-
-### Rastreabilidade
-
-A cadeia de rastreabilidade inclui:
-- arquivo PDF fonte
-- bloco segmentado
-- metadados extraídos
-- evento institucional
-- entidades canônicas
-- relações semânticas
-- timelines abertas/fechadas
-
-### Origem da inferência
-
-A inferência é sempre ancorada em rótulos documentais e regex contextuais.
-
-Exemplos:
-- rótulo `CONTRATANTE:` para origem contratual
-- `NOMEAR`/`EXONERAR` para eventos funcionais
-- `VIGÊNCIA:` para prazo de vínculo
-
-### Vínculo com Diário Oficial
-
-O registro de `diario_id` e `numero_bloco` em eventos e relações permite vincular cada inferência à publicação original do Diário.
-
-Isso garante que qualquer conclusão investigativa possa ser auditada até o documento público fonte.
-
----
-
-## 10. Fluxos Investigativos Possíveis
-
-### Movimentação administrativa
-
-- identificar nomeações e exonerações em órgãos públicos
-- rastrear entrada e saída de servidores
-- avaliar ritmo de mudança de gestão
-
-### Troca de gestão
-
-- comparar eventos `appointed` e `dismissed` por órgão
-- detectar transições concentradas em datas próximas
-- inferir mudança de equipe ou reestruturação
-
-### Recorrência institucional
-
-- usar `entity_relationships` para identificar contratações repetidas entre o mesmo órgão e fornecedor
-- mapear recorrência de despesas e contratos
-- priorizar fornecedores com múltiplos contratos em curtos períodos
-
-### Trajetórias funcionais
-
-- usar `entity_timelines` para reconstruir carreira de uma pessoa dentro do setor público
-- identificar períodos de lote e interrupções
-- cruzar nomeações com órgãos e cargos
-
-### Reconstrução temporal
-
-- usar `data_publicacao` de `publicacoes`, `eventos` e `entity_relationships`
-- gerar linhas de tempo de contratos e vínculos
-- auditar a sequência de eventos de um agente ou empresa
-
----
-
-## 11. Integração com o Ecossistema
-
-### diário_bot
-
-O `diario_processor` consome PDFs produzidos por um coletor de Diário Oficial, que geralmente é um componente como `diario_bot`.
-
-Papel esperado:
-- `diario_bot` coleta e armazena PDFs
-- `diario_processor` lê `BASE_DIARIO_PATH` e processa esses arquivos
-
-### transparencia_collector
-
-O projeto se integra conceitualmente com coletores de transparência externos:
-- enriquecimento de entidades públicas
-- validação de CNPJ e contratos
-- cruzamento de fornecedores com bases oficiais
-
-### analytics_engine
-
-O `analytics_engine` consome eventos canônicos e dados relacionais para análise avançada.
-
-Pontos de integração reais:
-- `InstitutionalEventOutboxRepository.publish()` insere eventos em `analytics.institutional_events_outbox`
-- consumidores downstream podem indexar esses eventos para dashboards e alertas
-
----
-
-## 12. Roadmap Futuro
-
-### Deduplicação relacional
-
-- implementar normalização de relações além de entidades
-- consolidar múltiplas relações idênticas entre o mesmo par de entidades
-- evitar ruído no grafo semântico
-
-### Investigative scoring
-
-- criar scores de risco e relevância para eventos, entidades e relações
-- priorizar investigações por padrão de recorrência e valor
-- calcular alertas de anomalia com base em histórico
-
-### Explainability avançada
-
-- capturar fontes de inferência com granularidade mais fina
-- gerar justificativas automáticas para cada relação e timeline
-- adicionar amarras de confiança para extrações heurísticas
-
-### APIs investigativas
-
-- expor endpoints para consulta de grafo, timelines e eventos
-- permitir queries como `trajetoria de entidade`, `vínculos ativos` e `contratos repetidos`
-
-### Graph intelligence
-
-- construir grafo nativo de entidades e relações
-- suportar consultas semânticas e travessias multi-hop
-- integrar com motores graph/knowledge
-
-### IA cognitiva futura
-
-- adicionar NLP contextual para compreensão de parágrafos, intenções e atores
-- usar embeddings para similaridade de entidades e documentos
-- suportar perguntas investigativas em linguagem natural
-
----
-
-## 13. Diagramas Mermaid
-
-### Arquitetura
+### Camadas ativas
 
 ```mermaid
-flowchart LR
-  subgraph Input
-    A[PDFs de Diários Oficiais] --> B[scanner.py]
-  end
-
-  subgraph DocumentPipeline
+flowchart TD
+    A[PDF de Diario Oficial] --> B[scanner.py]
     B --> C[extractor.py]
     C --> D[parser.py]
     D --> E[processor.py]
     E --> F[events.py]
-  end
-
-  subgraph Semantics
-    F --> G[EntityRepository]
-    F --> H[EventoRepository]
-    F --> I[EntityRelationshipRepository]
-    F --> J[TimelineRepository]
-  end
-
-  subgraph Output
-    H --> K[Institutional Event Outbox]
-    G --> L[diario.entidades]
-    I --> M[diario.entity_relationships]
-    J --> N[diario.entity_timelines]
-  end
-
-  A -->|PDF Source| B
-  F -->|Canonical Event| K
+    F --> G[normalizers / taxonomy]
+    G --> H[infra/db repositories]
+    H --> I[(PostgreSQL)]
+    H --> J[processos]
+    H --> K[contratos]
+    F --> L[canonical_event_builder.py]
+    L --> M[InstitutionalEventOutboxRepository]
 ```
 
-### Fluxo de processamento
+### Leitura de estado
 
-```mermaid
-sequenceDiagram
-    participant Scanner
-    participant Extractor
-    participant Parser
-    participant Processor
-    participant Events
-    participant Repositories
+| Componente | Estado | Papel |
+|---|---|---|
+| `main.py` | Implementado e usado | Orquestra a ingestao, a persistencia e a consolidacao final |
+| `scanner.py` | Implementado e usado | Localiza PDFs e extrai `diario_id` e `data_publicacao` |
+| `extractor.py` | Implementado e usado | Extrai texto bruto do PDF |
+| `parser.py` | Implementado e usado | Segmenta blocos e extrai campos contextuais |
+| `processor.py` | Implementado e usado | Monta os metadados do bloco e decide enriquecimento |
+| `events.py` | Implementado e usado | Constroi eventos institucionais a partir do bloco |
+| `canonical_event_builder.py` | Implementado, uso parcial | Monta payload canonico para outbox analitica |
+| `normalizer.py` | Implementado e usado | Normaliza processos, contratos, fornecedores e contratantes |
+| `normalizers/entity_normalizer.py` | Implementado e usado | Canonicaliza nomes de entidades para o grafo |
+| `infra/db/*` | Implementado e usado | Conexao, migracoes e repositorios Postgres |
+| `consolidador_processos.py` / `consolidador_contratos.py` | Implementado e usado | Consolidam catalogos finais apos a ingestao |
+| `database.py` | Implementado mas legado | Camada SQLite de compatibilidade local e testes |
+| `analytics.py` / `analytics_cli.py` | Implementado mas auxiliar | Consultas analiticas sobre a base SQLite legado |
+| `backfill.py` | Implementado mas auxiliar | Preenche campos derivados em registros antigos da base SQLite |
+| `tools/*` | Implementado mas auxiliar | Gera corpus de regressao e fixtures esperados |
 
-    Scanner->>Extractor: ler PDF
-    Extractor->>Parser: texto bruto
-    Parser->>Processor: blocos segmentados
-    Processor->>Events: metadados + bloco
-    Events->>Repositories: criar evento
-    Repositories->>Repositories: resolver entidades
-    Repositories->>Repositories: persistir relações
-    Repositories->>Repositories: atualizar timelines
+## 3. Estrutura do Projeto
+
+| Caminho | Responsabilidade | Estado |
+|---|---|---|
+| `main.py` | Entrada principal do pipeline, leitura de PDFs, persistencia de eventos/publicacoes e consolidacao final | Implementado e usado |
+| `scanner.py` | Varre o diretorio base, identifica arquivos e extrai a data do diario | Implementado e usado |
+| `extractor.py` | Converte PDF em texto usando `pdfplumber` e corrige encoding com `ftfy` | Implementado e usado |
+| `parser.py` | Segmenta publicacoes e extrai processo, contrato, CNPJ, fornecedor, contratante, vigencia, objeto e valores | Implementado e usado |
+| `processor.py` | Aplica classificacao documental e decide quando enriquecer campos contratuais | Implementado e usado |
+| `events.py` | Transforma blocos em eventos de contratacao, nomeacao, exoneracao e designacao de fiscal | Implementado e usado |
+| `canonical_event_builder.py` | Gera payload canonico para integracao externa | Implementado, uso parcial |
+| `normalizer.py` | Normaliza identidades textuais de negocio | Implementado e usado |
+| `classifier.py` | Define quais tipos recebem enriquecimento contratual | Implementado e usado |
+| `taxonomy/` | Centraliza constantes de entidades, eventos e relacoes | Implementado e usado |
+| `normalizers/` | Normalizacao canonica de entidades nominativas | Implementado e usado |
+| `infra/db/connection.py` | Pool de conexao Postgres com retry | Implementado e usado |
+| `infra/db/migrations/` | Migra schema e registra versoes aplicadas | Implementado e usado |
+| `infra/db/repositories/` | Persistencia de publicacoes, eventos, entidades, relacoes, timelines e outbox | Implementado e usado |
+| `consolidacao/base.py` | Executor comum para consolidadores | Implementado e usado |
+| `consolidador_processos.py` | Consolida catalogo de processos | Implementado e usado |
+| `consolidador_contratos.py` | Consolida catalogo de contratos | Implementado e usado |
+| `database.py` | Persistencia SQLite de compatibilidade e manutencao local | Legado |
+| `analytics.py` | Consultas analiticas sobre SQLite | Legado / auxiliar |
+| `analytics_cli.py` | CLI para consultas analiticas | Legado / auxiliar |
+| `backfill.py` | CLI de preenchimento tardio de campos derivados | Parcialmente implementado / auxiliar |
+| `docs/` | Especificacao do parser e matriz de cobertura | Documentacao de apoio |
+| `tests/` | Suite de validacao e regressao | Implementado e usado |
+| `tools/` | Geradores de fixtures para testes | Implementado e usado em manutencao |
+
+## 4. Pipeline Completo
+
+### Fluxo principal
+
+1. `main.py` chama `listar_pdfs()` e carrega todos os PDFs sob `BASE_DIARIO_PATH`.
+2. Para cada PDF, `extrair_diario_id()` deriva o identificador do arquivo.
+3. `extrair_texto()` converte o PDF em texto bruto.
+4. `extrair_data_publicacao()` tenta recuperar a data oficial do cabeçalho.
+5. `segmentar_publicacoes()` divide o diario em blocos independentes.
+6. `extrair_metadados_bloco()` extrai e normaliza campos por bloco.
+7. `extrair_eventos_bloco()` converte cada bloco em zero ou mais eventos institucionais.
+8. `EventoRepository.salvar_evento()` persiste o evento.
+9. `EntityRepository.obter_ou_criar()` resolve entidades canônicas.
+10. `EventoRepository.relacionar_entidade()` vincula eventos a entidades.
+11. `EntityRelationshipRepository.criar_relacao()` cria relacoes derivadas entre entidades.
+12. `TimelineRepository.abrir_vinculo()` e `fechar_vinculo()` atualizam a historia funcional.
+13. `PublicacaoRepository.salvar_publicacao()` persiste o bloco cru e os metadados.
+14. Ao fim do lote, `consolidar_postgres()` e `consolidar_contratos_postgres()` constroem os catalogos consolidados.
+
+### Fluxo textual
+
+```text
+PDF
+ -> texto bruto
+ -> blocos/publicacoes
+ -> metadados de bloco
+ -> eventos
+ -> entidades
+ -> relacoes
+ -> timelines
+ -> publicacoes persistidas
+ -> processos consolidados
+ -> contratos consolidados
 ```
 
-### Modelo relacional
+### Pontos de entrada
+
+- `python main.py` ou execucao equivalente do modulo principal.
+- `python run_migrations.py` para criar/atualizar schema.
+- `python backfill.py` para preenchimento tardio da base SQLite legado.
+- `python analytics_cli.py` para consultas analiticas legadas.
+
+## 5. Modelo de Dados
+
+### Tabelas geridas pelo codigo atual
+
+| Tabela | Finalidade | Origem | Relacionamentos | Status |
+|---|---|---|---|---|
+| `publicacoes` | Armazena cada bloco de diario com texto bruto e metadados extraidos | `PublicacaoRepository` e `database.py` legado | Origina eventos, entidades derivadas e catalogos consolidados | Ativa |
+| `eventos` | Registra eventos institucionais extraidos de blocos | `EventoRepository` | Liga-se a `evento_entidades`, `relacionamentos_entidades` e `timelines_entidades` | Ativa |
+| `entidades` | Catalogo canonico de pessoas, empresas e orgaos | `EntityRepository` | Base para eventos, relacoes e timelines | Ativa |
+| `evento_entidades` | Vínculo entre evento e entidade com papel contextual | `EventoRepository.relacionar_entidade()` | FK para `eventos` e `entidades` | Ativa |
+| `relacionamentos_entidades` | Relacao derivada entre duas entidades | `EntityRelationshipRepository` | FK conceitual para `entidades` e referencia a `eventos` | Ativa |
+| `timelines_entidades` | Historia temporal de vinculos funcionais | `TimelineRepository` | FK conceitual para `entidades` e eventos de inicio/fim | Ativa |
+| `processos` | Catalogo consolidado por `processo_normalizado` | `consolidador_processos.py` | Deriva de `publicacoes` | Ativa |
+| `contratos` | Catalogo consolidado por `contrato_normalizado` | `consolidador_contratos.py` | Deriva de `publicacoes` | Ativa |
+| `schema_migrations` | Controle de versao das migracoes | `infra/db/migrations/runner.py` | Mantem trilha de migracao | Ativa |
+
+### Campos centrais da `publicacoes`
+
+- `diario_id`
+- `numero_bloco`
+- `arquivo_path`
+- `texto_bloco`
+- `tipo`
+- `processo`
+- `contrato`
+- `contrato_normalizado`
+- `contratante`
+- `contratante_normalizado`
+- `fornecedor`
+- `fornecedor_normalizado`
+- `cnpj`
+- `valores`
+- `valor_principal`
+- `vigencia`
+- `objeto`
+- `data_processamento`
+- `processo_normalizado`
+- `data_publicacao`
+
+### Campos centrais das demais tabelas
+
+- `eventos`: `tipo_evento`, `agente_nome`, `cargo`, `orgao`, `entidade_origem`, `entidade_destino`, `processo`, `contrato`, `valor`, `diario_id`, `numero_bloco`, `evidencia_textual`, `data_publicacao`
+- `entidades`: `tipo_entidade`, `nome_original`, `nome_normalizado`
+- `evento_entidades`: `evento_id`, `entidade_id`, `papel`
+- `relacionamentos_entidades`: `entidade_origem_id`, `entidade_destino_id`, `tipo_relacao`, `diario_id`, `data_publicacao`, `evento_id`
+- `timelines_entidades`: `entidade_id`, `orgao_entidade_id`, `tipo_vinculo`, `data_inicio`, `data_fim`, `ativo`, `evento_inicio_id`, `evento_fim_id`
+- `processos`: `processo`, `processo_normalizado`, `data_primeira_publicacao`, `data_ultima_publicacao`, `quantidade_publicacoes`
+- `contratos`: `contrato`, `contrato_normalizado`, `data_primeira_publicacao`, `data_ultima_publicacao`, `quantidade_publicacoes`
+
+### Tabelas presentes apenas no dump `diario_schema.sql`
+
+Estas tabelas aparecem no dump do banco, mas nao sao referenciadas pelo codigo Python atual:
+
+- `backupeventos_20260704`
+- `classificacao_pendente`
+- `eventos_institucionais`
+- `ocorrencias_qualidade`
+- `orgaos`
+- `orgaos_aliases`
+- `regras_qualidade`
+
+Elas devem ser tratadas como artefatos legados do banco e nao como parte do fluxo principal descrito nesta documentacao.
+
+### Diagrama relacional
 
 ```mermaid
 erDiagram
-    PUBLICACOES {
-        INTEGER id PK
-        INTEGER diario_id
-        INTEGER numero_bloco
-        TEXT arquivo_path
-        TEXT texto_bloco
-        TEXT tipo
-        TEXT processo
-        TEXT contrato
-        TEXT contratante
-        TEXT fornecedor
-        TEXT fornecedor_normalizado
-        TEXT contratante_normalizado
-        TEXT cnpj
-        JSONB valores
-        NUMERIC valor_principal
-        TEXT vigencia
-        TEXT objeto
-        DATE data_publicacao
-    }
-    EVENTOS {
-        BIGSERIAL id PK
-        TEXT tipo_evento
-        TEXT agente_nome
-        TEXT cargo
-        TEXT orgao
-        TEXT entidade_origem
-        TEXT entidade_destino
-        TEXT processo
-        TEXT contrato
-        NUMERIC valor
-        INTEGER diario_id
-        INTEGER numero_bloco
-        TEXT evidencia_textual
-        DATE data_publicacao
-    }
-    ENTIDADES {
-        BIGSERIAL id PK
-        TEXT tipo_entidade
-        TEXT nome_original
-        TEXT nome_normalizado
-    }
-    EVENTO_ENTIDADES {
-        BIGSERIAL id PK
-        BIGINT evento_id FK
-        BIGINT entidade_id FK
-        TEXT papel
-    }
-    ENTITY_RELATIONSHIPS {
-        BIGSERIAL id PK
-        BIGINT entidade_origem_id FK
-        BIGINT entidade_destino_id FK
-        TEXT tipo_relacao
-        INTEGER diario_id
-        DATE data_publicacao
-    }
-    ENTITY_TIMELINES {
-        BIGSERIAL id PK
-        BIGINT entidade_id FK
-        BIGINT orgao_entidade_id FK
-        TEXT tipo_vinculo
-        DATE data_inicio
-        DATE data_fim
-        BOOLEAN ativo
-        BIGINT evento_inicio_id
-        BIGINT evento_fim_id
-    }
-
-    PUBLICACOES ||--o{ EVENTOS : "fonte de"
-    EVENTOS ||--o{ EVENTO_ENTIDADES : "participantes"
-    ENTIDADES ||--o{ EVENTO_ENTIDADES : "associa"
-    ENTIDADES ||--o{ ENTITY_RELATIONSHIPS : "origem"
-    ENTIDADES ||--o{ ENTITY_RELATIONSHIPS : "destino"
-    ENTIDADES ||--o{ ENTITY_TIMELINES : "histórico"
+    PUBLICACOES ||--o{ EVENTOS : origina
+    EVENTOS ||--o{ EVENTO_ENTIDADES : participa
+    ENTIDADES ||--o{ EVENTO_ENTIDADES : referencia
+    ENTIDADES ||--o{ RELACIONAMENTOS_ENTIDADES : origem
+    ENTIDADES ||--o{ RELACIONAMENTOS_ENTIDADES : destino
+    ENTIDADES ||--o{ TIMELINES_ENTIDADES : historia
+    PUBLICACOES ||--o{ PROCESSOS : consolida
+    PUBLICACOES ||--o{ CONTRATOS : consolida
 ```
 
-### Timeline institucional
+## 6. Entidades de Dominio
 
-```mermaid
-flowchart TD
-  Pessoa[Entidade Pessoa] -->|nomeado| TimelineAtivo[Timeline ativo]
-  TimelineAtivo -->|exonerado| TimelineFechado[Timeline fechado]
-  Pessoa -->|vinculado a| Orgao[Entidade Órgão]
-  TimelineAtivo -->|evento_inicio| EventoNomeacao[Evento de Nomeação]
-  TimelineFechado -->|evento_fim| EventoExoneracao[Evento de Exoneração]
-```
+### Publicacao
 
-### Fluxo investigativo
+A publicacao e a menor unidade persistida do sistema. Ela representa um bloco documental segmentado do Diario Oficial e guarda o texto bruto como evidencia primaria.
+
+- Identidade: `diario_id` + `numero_bloco` + `arquivo_path`
+- Origem: segmentacao do PDF original
+- Responsabilidade: preservar evidencia e metadados locais
+- Ciclo de vida: nasce na ingestao, pode receber campos derivados, e permanece como registro historico
+
+### Processo
+
+Processo e uma entidade consolidada. Ele nao e apenas um campo de publicacao; e um catalogo proprio gerado a partir de `processo_normalizado`.
+
+- Identidade: `processo_normalizado`
+- Origem: derivado das publicacoes
+- Responsabilidade: agrupar todas as ocorrencias do mesmo processo
+- Ciclo de vida: consolidado apos a ingestao e atualizado por UPSERT
+
+### Contrato
+
+Contrato e outra entidade consolidada e segue a mesma logica do processo.
+
+- Identidade: `contrato_normalizado`
+- Origem: derivado das publicacoes
+- Responsabilidade: agrupar publicacoes vinculadas ao mesmo instrumento
+- Ciclo de vida: consolidado apos a ingestao e atualizado por UPSERT
+
+### Evento
+
+Evento e a abstracao institucional derivada da publicacao. Ele representa algo que ocorreu no dominio, como contratacao, nomeacao ou exoneracao.
+
+- Identidade: `id` do banco + tipo do evento
+- Origem: `events.py`
+- Responsabilidade: tornar inferencia documental consultavel
+- Ciclo de vida: criado por bloco e persistido com evidencia textual
+
+### Pessoa
+
+Pessoa e uma entidade nominativa. Ela representa o agente publico ou servidor identificado em eventos funcionais.
+
+- Identidade: `tipo_entidade = PESSOA` + `nome_normalizado`
+- Origem: `EntityRepository`
+- Responsabilidade: consolidar nomes de pessoas em forma canonica
+- Ciclo de vida: criada sob demanda e reutilizada em eventos e timelines
+
+### Empresa
+
+Empresa e a entidade nominativa usada para fornecedores e contratadas.
+
+- Identidade: `tipo_entidade = EMPRESA` + `nome_normalizado`
+- Origem: `EntityRepository`
+- Responsabilidade: representar o polo privado nos eventos contratuais
+- Ciclo de vida: criada sob demanda e reutilizada em eventos e relacoes
+
+### Orgao
+
+Orgao e a entidade nominativa publica.
+
+- Identidade: `tipo_entidade = ORGAO_PUBLICO` + `nome_normalizado`
+- Origem: `EntityRepository`
+- Responsabilidade: representar secretaria, fundo ou orgao de lotacao/contratante
+- Ciclo de vida: criada sob demanda e reutilizada em eventos, relacoes e timelines
+
+## 7. Normalizacao
+
+### Camada `normalizer.py`
+
+Esta camada normaliza campos de negocio extraidos do bloco.
+
+- `normalize_processo()`: preserva o formato textual canonico do processo, removendo espacos espurios e pontuacao final.
+- `normalize_contrato()`: limpa separadores e pontuacao residual sem destruir a forma do instrumento.
+- `normalize_fornecedor()` e `normalize_contratante()`: delegam para `normalize_entidade()`.
+- `normalize_entidade()`: remove acentos, padroniza caixa alta, tokeniza e remove sufixos empresariais fortes e alguns finais.
+
+### Camada `normalizers/entity_normalizer.py`
+
+Esta camada normaliza entidades nominativas para deduplicacao no catalogo de `entidades`.
+
+- Remove acentos.
+- Converte para uppercase.
+- Compacta `S A` em `SA`.
+- Remove sufixos empresariais como `LTDA`, `EIRELI`, `SA`, `ME`, `EPP`.
+- Mantem o nome original separado do nome normalizado.
+
+### Campos normalizados no modelo
+
+- `processo_normalizado`
+- `contrato_normalizado`
+- `fornecedor_normalizado`
+- `contratante_normalizado`
+
+### Utilizacao
+
+- `processor.py` preenche os campos normalizados no momento da extracao.
+- `backfill.py` pode recomputar campos ausentes em registros antigos da base SQLite.
+- `EntityRepository` usa normalizacao de entidade para identificar registros canônicos.
+- `consolidador_processos.py` e `consolidador_contratos.py` dependem dos campos normalizados como chave de agrupamento.
+
+## 8. Consolidadores
+
+### Infraestrutura
+
+`consolidacao/base.py` fornece o executor generico baseado em callbacks. Ele separa tres responsabilidades:
+
+- carregar grupos agregados
+- persistir cada grupo
+- executar uma preparacao opcional da base local
+
+### Consolidador de processos
+
+`consolidador_processos.py` agrupa `publicacoes` por `processo_normalizado`.
+
+- Usa a menor representacao original nao vazia como forma textual do processo.
+- Calcula a primeira e a ultima data de publicacao do grupo.
+- Conta quantas publicacoes alimentam o catalogo consolidado.
+- Usa `UPSERT` em Postgres para manter idempotencia.
+
+### Consolidador de contratos
+
+`consolidador_contratos.py` segue a mesma estrategia para `contrato_normalizado`.
+
+- Agrupa por contrato normalizado.
+- Mantem primeira e ultima data de publicacao.
+- Atualiza quantidade de publicacoes.
+- Usa `UPSERT` em Postgres.
+
+### Idempotencia
+
+Os consolidadores sao idempotentes por design porque:
+
+- o agrupamento parte da chave normalizada
+- o Postgres recebe `ON CONFLICT`
+- as versoes SQLite usadas em testes atualizam apenas quando houve mudanca de estado
+
+### Critereos de agregacao
+
+- `MIN(NULLIF(BTRIM(...), ''))` para a forma textual original mais enxuta
+- `MIN(data_publicacao)` para a primeira publicacao
+- `MAX(data_publicacao)` para a ultima publicacao
+- `COUNT(*)` para a quantidade total
+
+## 9. Camada Institucional
+
+### Eventos
+
+`events.py` produz eventos a partir do bloco e da classificacao documental.
+
+Eventos atualmente emitidos pelo fluxo principal:
+
+- `CONTRATACAO`
+- `DESIGNACAO_FISCAL`
+- `NOMEACAO`
+- `EXONERACAO`
+
+### Entidades
+
+As entidades sao resolvidas por tipo e nome normalizado.
+
+- `PESSOA`
+- `EMPRESA`
+- `ORGAO_PUBLICO`
+
+### Relacionamentos
+
+`taxonomy.relation_resolver.resolver_relacao_evento()` mapeia o tipo de evento para um tipo de relacionamento semantico.
+
+- `NOMEACAO` -> `nomeado_em`
+- `EXONERACAO` -> `exonerado_de`
+- `CONTRATACAO` -> `contratou`
+- `DESIGNACAO` -> `designado_para`
+- `DISPENSA` -> `autorizou`
+- `LICITACAO` -> `participou_licitacao`
+- fallback -> `related_to`
+
+### Timeline
+
+`TimelineRepository` materializa vinculos funcionais entre pessoa e orgao.
+
+- `abrir_vinculo()` e acionado em nomeacao.
+- `fechar_vinculo()` e acionado em exoneracao.
+- O tipo de vinculo gravado hoje e `LOTACAO`.
+- A timeline e restrita ao dominio funcional e nao substitui o grafo de relacoes.
+
+### Outbox canonico
+
+`canonical_event_builder.py` cria um payload canonico com `schema_version`, `source` e `event`.
+
+Estado atual:
+
+- A construcao do payload existe.
+- A publicacao para outbox e condicional.
+- O repositorio de outbox so publica se a tabela externa existir.
+
+Limite atual importante:
+
+- `InstitutionalEventOutboxRepository.publish()` espera `event.to_dict()`.
+- `build_institutional_event()` retorna `dict`.
+- Se a outbox externa estiver habilitada, essa interface precisa estar consistente no runtime externo ou a publicacao falhara.
+
+## 10. Camada de Relacionamentos
+
+### O que existe
+
+- `evento_entidades` representa participacao de entidades em um evento.
+- `relacionamentos_entidades` representa um relacionamento persistente derivado do evento.
+- `timelines_entidades` representa um relacionamento temporal entre pessoa e orgao.
+
+### Responsabilidades
+
+- `evento_entidades` registra contexto imediato.
+- `relacionamentos_entidades` registra conhecimento derivado.
+- `timelines_entidades` registra permanencia e encerramento de vinculo.
+
+### Limitacoes atuais
+
+- Nao existe motor de grafo nativo.
+- Nao existe consolidacao de relacoes duplicadas.
+- Nao existe travessia multi-hop implementada no codigo atual.
+- O sistema nao unifica automaticamente relacoes semanticamente equivalentes produzidas em blocos diferentes.
+- A timeline cobre apenas o eixo funcional pessoa-orgao.
+
+### Fluxo de relacionamento
 
 ```mermaid
 flowchart LR
-  PDF --> Texto --> Bloco --> Evento --> Entidade --> Relação --> Timeline
-  Evento --> Outbox[Outbox Analítica]
-  Relação --> Grafo[Grafo Investigativo]
-  Timeline --> Histórico[Histórico Institucional]
-```
+    E[Evento] --> EE[evento_entidades]
+    E --> R[relacionamentos_entidades]
+    E --> T[timelines_entidades]
 ```
 
-## 14. APIs e Repositories
+## 11. Principios Arquiteturais
 
-### Repositories
+### Evidencia documental
 
-- `PublicacaoRepository`
-  - função: persistir publicações/documentos e verificar incrementalidade
-  - principal contrato: `salvar_publicacao(...)`, `ja_processado(...)`, `listar_fornecedores_consolidados()`
+O texto bruto do bloco e preservado em `publicacoes.texto_bloco` e tambem referenciado por eventos via `evidencia_textual`.
 
-- `EventoRepository`
-  - função: persistir eventos extraídos e associá-los a entidades
-  - principal contrato: `salvar_evento(evento, data_publicacao)`
-  - associações: `relacionar_entidade(evento_id, entidade_id, papel)`
+### Identidade canonica
 
-- `EntityRepository`
-  - função: resolver ou criar entidades canônicas
-  - principal contrato: `obter_ou_criar(tipo_entidade, nome_original)`
+Campos normalizados sustentam a identidade de processos, contratos e entidades nominativas.
 
-- `EntityRelationshipRepository`
-  - função: persistir relações semânticas entre entidades
-  - principal contrato: `criar_relacao(entidade_origem_id, entidade_destino_id, tipo_relacao, diario_id, data_publicacao)`
+### Entidades enxutas
 
-- `TimelineRepository`
-  - função: gerenciar vínculos temporais de entidades públicas
-  - principal contratos: `abrir_vinculo(...)`, `fechar_vinculo(...)`
+Pessoa, empresa e orgao sao entidades simples, sem carga excessiva de atributos.
 
-- `InstitutionalEventOutboxRepository`
-  - função: publicar eventos canônicos em um outbox analítico externo
-  - contrato: `publish(event)` retorna `True`/`False`
+### Consolidacao
 
-### Funções principais e responsabilidades
+Processos e contratos sao catalogos consolidados e nao simples campos auxiliares.
 
-- `main.run()` — orchestrator completo do pipeline
-- `scanner.listar_pdfs()` — detecção de arquivos
-- `extractor.extrair_texto()` — extração de texto bruto
-- `parser.segmentar_publicacoes()` — segmentação em blocos
-- `processor.extrair_metadados_bloco()` — classificação e enriquecimento
-- `events.extrair_eventos_bloco()` — identificação de eventos institucionais
-- `canonical_event_builder.build_institutional_event()` — transformação para payload canônico
+### Rastreabilidade
 
-### Contratos internos
+Cada evento e cada relacao mantem referencia ao `diario_id`, ao bloco e ao texto de origem.
 
-- cada evento salvo deve permitir retorno de `evento_id`
-- cada entidade pode ser referenciada por `id`
-- cada relação e timeline deve poder ser atualizada com `data_publicacao`
-- `publicacoes` deve preservar texto bruto mesmo quando extrações falham
+### Incrementalismo
 
----
+Existe a operacao `ja_processado()`, mas o `main.py` atual desativa a economia incremental por usar `REPROCESSAR_TUDO = True`.
 
-## 15. Visão Estratégica
+### Separacao entre nominativo e administrativo
 
-### Por que deixou de ser um parser documental
+Pessoas, empresas e orgaos permanecem como entidades, enquanto processos e contratos sao objetos administrativos consolidados.
 
-Originalmente, o projeto poderia ser apenas um parser de contratos e extratos.
-Hoje ele é um motor de inteligência institucional porque:
-- não apenas lê documentos, mas estrutura eventos e entidades
-- converte jornal público em grafo semântico
-- suporta timelines e investigações históricas
-- entrega dados para analytics e outbox
-- prioriza evidência documental e rastreabilidade
+## 12. Fluxos de Dados
 
-### Transição para motor de inteligência investigativa
+### PDF -> Publicacao
 
-A transformação estratégica foi:
-- de extração de texto → extração de significado
-- de processamento de blocos → construção de grafo
-- de leitura de PDF → geração de eventos acionáveis
-- de parser local → componente central de um ecossistema de investigação
+```mermaid
+flowchart LR
+    PDF[PDF] --> TEXTO[Texto bruto]
+    TEXTO --> BLOCOS[Blocos segmentados]
+    BLOCOS --> PUB[publicacoes]
+```
 
-O `diario_processor` hoje é uma camada de inteligência documental que faz a ponte entre o universo bruto dos Diários Oficiais e as necessidades analíticas e investigativas de entidades públicas e privadas.
+### Publicacao -> Processo
+
+```mermaid
+flowchart LR
+    PUB[publicacoes] --> NORM[processo_normalizado]
+    NORM --> CONS[processos]
+```
+
+### Publicacao -> Contrato
+
+```mermaid
+flowchart LR
+    PUB[publicacoes] --> NORM[contrato_normalizado]
+    NORM --> CONS[contratos]
+```
+
+### Evento -> Entidade
+
+```mermaid
+flowchart LR
+    EV[eventos] --> EE[evento_entidades]
+    EE --> ENT[entidades]
+```
+
+### Evento -> Relacionamento
+
+```mermaid
+flowchart LR
+    EV[eventos] --> RR[relacionamentos_entidades]
+    EV --> TL[timelines_entidades]
+```
+
+## 13. Estrategia de Testes
+
+### Testes unitarios
+
+- `tests/test_parser.py` cobre extracao de processo, contrato, vigencia, objeto, CNPJ, valores e segmentacao.
+- `tests/test_events.py` cobre geracao de eventos, subeventos e associacao de metadados.
+- `tests/test_processor.py` cobre enriquecimento contratual seletivo.
+- `tests/test_normalizer.py` valida regras de normalizacao.
+
+### Regressoes
+
+- `tests/test_regression.py` protege casos reais de segmentacao.
+- `tests/test_corpus.py` e o corpus versionado de exemplos extraidos de diarios reais.
+
+### Auditorias SQL
+
+- `tests/test_postgres_infra.py` valida SQL gerado por migracoes, repositorios e consolidadores.
+- A estrategia usa conexoes falsas para inspecionar comandos sem depender de banco real.
+
+### Validacoes arquiteturais
+
+- `tests/test_database.py` confirma preservacao de texto bruto e indices analiticos no legado SQLite.
+- `tests/test_backfill.py` verifica preenchimento tardio sem sobrescrever dados validos.
+- `tests/test_analytics.py` garante que as consultas nao alteram a evidencia original.
+
+## 14. Historico Arquitetural
+
+Evolucoes efetivamente incorporadas ao projeto:
+
+- Fortalecimento do parser documental.
+- Normalizacao de processo e contrato.
+- Criacao dos catalogos consolidados de Processo e Contrato.
+- Criacao da entidade Processo.
+- Criacao da infraestrutura de consolidacao.
+- Propagacao de `data_publicacao`.
+- Estruturacao da camada de eventos institucionais.
+- Estruturacao da camada de relacoes entre entidades.
+- Introducao de timelines para vinculos funcionais.
+- Separacao entre base legada SQLite e base atual em PostgreSQL.
+
+## 15. Decisoes Arquiteturais Consolidadas
+
+- Publicacoes representam evidencias documentais.
+- O Diario Oficial nao e tratado como um unico documento logico.
+- Processo permanece em catalogo proprio.
+- Contrato permanece em catalogo proprio.
+- Entidades representam atores nominativos.
+- Consolidadores constroem catalogos a partir das evidencias.
+- Relacoes representam conhecimento derivado.
+- A persistencia oficial atual e PostgreSQL.
+- SQLite ficou como compatibilidade local, testes e utilitarios auxiliares.
+
+## 16. Inventario e Validacao
+
+### Arquivos analisados
+
+- `main.py`
+- `scanner.py`
+- `extractor.py`
+- `parser.py`
+- `processor.py`
+- `events.py`
+- `canonical_event_builder.py`
+- `normalizer.py`
+- `classifier.py`
+- `config.py`
+- `database.py`
+- `analytics.py`
+- `analytics_cli.py`
+- `backfill.py`
+- `consolidador_processos.py`
+- `consolidador_contratos.py`
+- `consolidacao/base.py`
+- `infra/db/connection.py`
+- `infra/db/migrations/runner.py`
+- `infra/db/migrations/*.sql`
+- `infra/db/repositories/*.py`
+- `taxonomy/*.py`
+- `normalizers/entity_normalizer.py`
+- `tools/gerar_expected.py`
+- `tests/*.py`
+- `diario_schema.sql`
+- `README.md`
+- `documentacao_tecnica.md`
+
+### Arquivos documentados
+
+- `documentacao_tecnica.md`
+
+### Modulos documentados
+
+- Ingestao de PDFs
+- Segmentacao e parser documental
+- Extracao de metadados
+- Eventos institucionais
+- Normalizacao
+- Persistencia PostgreSQL
+- Consolidacao de processos e contratos
+- Camada relacional e temporal
+- Testes e utilitarios de manutencao
+
+### Quantidade aproximada de paginas
+
+- Aproximadamente 14 a 16 paginas em renderizacao Markdown comum, dependendo da largura do editor e da largura das tabelas.
+
+### Principais diagramas produzidos
+
+- Diagrama geral da arquitetura
+- Diagrama ER do modelo de dados
+- Fluxos `PDF -> Publicacao`, `Publicacao -> Processo`, `Publicacao -> Contrato`, `Evento -> Entidade`, `Evento -> Relacionamento`
+- Diagrama da camada de relacionamentos
+
+### Inconsistencias encontradas
+
+- `main.py` mantem `REPROCESSAR_TUDO = True`, entao a incrementalidade existe, mas nao fica ativa no fluxo padrao.
+- `InstitutionalEventOutboxRepository.publish()` espera `to_dict()`, enquanto `build_institutional_event()` retorna `dict`.
+- `taxonomy/event_taxonomy.py` define mais tipos de evento do que `events.py` emite hoje.
+- O dump `diario_schema.sql` contem tabelas sem referencia no codigo atual, o que indica legado de banco nao refletido no fluxo Python principal.
+
