@@ -2,7 +2,6 @@ import re
 import json
 from datetime import datetime, timezone
 
-from parser import extrair_contrato, extrair_processo
 from normalizer import normalize_contrato, normalize_processo
 
 RE_INSTITUTIONAL_CONTRATANTE = re.compile(r'(?i)(?<!PELO\s)(?<!PELA\s)CONTRATANTE\s*:', re.IGNORECASE)
@@ -75,19 +74,27 @@ def aplicar_regra_001_heranca_contratante(prev_block_text, prev_metadados, prev_
     same_process = False
 
     if contrato_prev and contrato_curr:
-        # normalize simple textual representation
-        def _norm(s):
-            return re.sub(r"\s+", "", (s or '').upper())
         try:
-            same_contract = _norm(contrato_prev) == _norm(contrato_curr)
+            # Use canonical normalize_contrato and compare their canonical forms
+            norm_prev = normalize_contrato(contrato_prev)
+            norm_curr = normalize_contrato(contrato_curr)
+            if norm_prev is None or norm_curr is None:
+                same_contract = False
+            else:
+                # Preserve previous comparison behavior by removing whitespace and comparing case-insensitively
+                same_contract = re.sub(r"\s+", "", norm_prev.upper()) == re.sub(r"\s+", "", norm_curr.upper())
         except Exception:
             same_contract = False
 
     if processo_prev and processo_curr and not same_contract:
-        def _normp(s):
-            return re.sub(r"\s+", "", (s or '').upper())
         try:
-            same_process = _normp(processo_prev) == _normp(processo_curr)
+            # Use canonical normalize_processo and compare their canonical forms
+            normp_prev = normalize_processo(processo_prev)
+            normp_curr = normalize_processo(processo_curr)
+            if normp_prev is None or normp_curr is None:
+                same_process = False
+            else:
+                same_process = re.sub(r"\s+", "", normp_prev.upper()) == re.sub(r"\s+", "", normp_curr.upper())
         except Exception:
             same_process = False
 
