@@ -1,3 +1,13 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
 from scanner import (
     listar_pdfs,
     extrair_diario_id,
@@ -69,12 +79,54 @@ from canonical_event_builder import (
 from consolidador_processos import consolidar_postgres
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
+
+def _emitir_audit(prefix, pdf_path=None, extra=None):
+    cfg = get_postgres_config()
+    try:
+        repo_root = Path(__file__).resolve().parent
+        commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_root, text=True).strip()
+        branch_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, text=True).strip()
+    except Exception as exc:
+        commit_sha = f"ERR:{exc}"
+        branch_name = f"ERR:{exc}"
+
+    payload = {
+        "commit_sha": commit_sha,
+        "branch": branch_name,
+        "arquivo_processado": str(pdf_path) if pdf_path is not None else None,
+        "pid": os.getpid(),
+        "db": cfg.db,
+        "host": cfg.host,
+        "schema": cfg.schema,
+    }
+    if extra:
+        payload.update(extra)
+    print(f"[AUDIT][{prefix}]", payload)
+
+
+def _mostrar_estado_publicacao(conn, pdf_path, numero_bloco):
+    schema = get_postgres_config().schema
+    with conn.cursor() as cursor:
+        cursor.execute(
+            f"""
+            SELECT
+                contratante,
+                contratante_normalizado
+            FROM {schema}.publicacoes
+            WHERE arquivo_path = %s
+              AND numero_bloco = %s
+            """,
+            (str(pdf_path), numero_bloco),
+        )
+        print("[AUDIT][SELECT_RESULT]", cursor.fetchall())
+
+
 def run():
 
+    _emitir_audit("RUN_START")
     print("Iniciando Diário Processor...\n")
 
     with postgres_connection() as conn:
-
         repository = PublicacaoRepository(conn)
 
         evento_repository = EventoRepository(conn)
@@ -127,6 +179,7 @@ def run():
 
                 diario_id = extrair_diario_id(pdf)
 
+                _emitir_audit("PROCESSANDO_PDF", pdf, {"diario_id": diario_id})
                 print("\n================================================")
                 print(f"Processando diário {diario_id}")
                 print(f"Arquivo: {pdf}")
@@ -173,6 +226,51 @@ def run():
                     metadados = extrair_metadados_bloco(
                         bloco
                     )
+
+                    # ================================
+                    # Enriquecimento Contextual (Regra 001)
+                    # ================================
+                    # Se aplicável, herda contratante institucional do bloco anterior
+                    try:
+                        from contextual_enrichment import aplicar_regra_001_heranca_contratante
+
+                        prev_block_text = previous_bloco if 'previous_bloco' in locals() else None
+                        prev_metadados = previous_metadados if 'previous_metadados' in locals() else None
+                        prev_num = previous_numero if 'previous_numero' in locals() else None
+                        curr_num = i
+
+                        updated_metadados, applied, audit = aplicar_regra_001_heranca_contratante(
+                            prev_block_text,
+                            prev_metadados,
+                            prev_num,
+                            bloco,
+                            metadados,
+                            curr_num,
+                            str(pdf)
+                        )
+
+                        _emitir_audit(
+                            "ETAPA2_EC",
+                            pdf,
+                            {
+                                "bloco": i,
+                                "applied": applied,
+                                "criterion": audit.get("criterion") if audit else None,
+                                "contratante": updated_metadados.get("contratante") if updated_metadados else None,
+                                "contratante_normalizado": updated_metadados.get("contratante_normalizado") if updated_metadados else None,
+                            },
+                        )
+
+                        if applied:
+                            metadados = updated_metadados
+                    except Exception:
+                        # silenciar falhas do enriquecimento para não interromper o pipeline
+                        pass
+
+                    # 保存前保留当前 bloco作为 "previous" para próxima iteração
+                    previous_bloco = bloco
+                    previous_metadados = metadados
+                    previous_numero = i
 
                     # =========================================
                     # EVENTOS
@@ -464,6 +562,17 @@ def run():
                     # SALVA PUBLICAÇÃO
                     # =========================================
 
+                    _emitir_audit(
+                        "ETAPA3_BEFORE_REPOSITORY",
+                        pdf,
+                        {
+                            "bloco": i,
+                            "contratante": metadados.get("contratante"),
+                            "contratante_normalizado": metadados.get("contratante_normalizado"),
+                            "metadados": metadados,
+                        },
+                    )
+
                     repository.salvar_publicacao(
 
                         diario_id,
@@ -508,6 +617,8 @@ def run():
                 novos += 1
 
                 conn.commit()
+                _emitir_audit("ETAPA6_AFTER_COMMIT", pdf, {"bloco": i})
+                _mostrar_estado_publicacao(conn, pdf, i)
 
             except Exception as e:
 
@@ -563,6 +674,12 @@ def run():
             f"{ignorados}"
         )
         print("========================================")
+
+    target_pdf_path = Path("C:/automacoes/diario_bot/pdfs/2026/07/diario_3388.pdf")
+    target_numero_bloco = 5
+    _emitir_audit("ETAPA7_FINAL_SELECT", target_pdf_path, {"bloco": target_numero_bloco})
+    with postgres_connection() as conn_final:
+        _mostrar_estado_publicacao(conn_final, target_pdf_path, target_numero_bloco)
 
 
 if __name__ == "__main__":
