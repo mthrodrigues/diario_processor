@@ -188,6 +188,35 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertEqual(params[-1], "2026-07-30")
         self.assertIn("data_publicacao", sql)
 
+    def test_repository_salvar_publicacao_recalcula_contratante_normalizado(self):
+        conn = FakeConnection()
+        repo = PublicacaoRepository(conn, schema="diario")
+
+        repo.salvar_publicacao(
+            diario_id=1,
+            numero_bloco=1,
+            arquivo_path="diario_1.pdf",
+            texto_bloco="RAW",
+            tipo="contrato",
+            processo="1/2026",
+            contrato="001/2026",
+            contratante="O Município de Teresópolis através da Secretaria Municipal de Educação",
+            fornecedor="Condor",
+            cnpj=None,
+            valores=[100.0],
+            valor_principal=100.0,
+            vigencia="12 meses",
+            objeto="Objeto",
+            fornecedor_normalizado="CONDOR",
+            contratante_normalizado="MUNICIPIO ANTIGO",
+            processo_normalizado="1/2026",
+            data_publicacao="2026-07-30",
+            contrato_normalizado="001/2026",
+        )
+
+        sql, params = conn.executed[-1]
+        self.assertEqual(params[11], "O MUNICIPIO DE TERESOPOLIS ATRAVES DA SECRETARIA MUNICIPAL DE EDUCACAO")
+
     def test_repository_ja_processado(self):
         conn = FakeConnection()
         conn.fetchone_queue.append((1,))
