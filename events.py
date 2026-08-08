@@ -333,9 +333,6 @@ def extrair_eventos_bloco(
 
     subeventos = segmentar_sub_eventos(texto_bloco)
 
-    print("\nSUBEVENTOS IDENTIFICADOS:")
-    print(len(subeventos))
-
     for subevento in subeventos:
 
         evento = None
