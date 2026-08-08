@@ -1,7 +1,5 @@
-import os
-import subprocess
 import sys
-from pathlib import Path
+import time
 
 try:
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -80,51 +78,12 @@ from consolidador_processos import consolidar_postgres
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
 
-def _emitir_audit(prefix, pdf_path=None, extra=None):
-    cfg = get_postgres_config()
-    try:
-        repo_root = Path(__file__).resolve().parent
-        commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_root, text=True).strip()
-        branch_name = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, text=True).strip()
-    except Exception as exc:
-        commit_sha = f"ERR:{exc}"
-        branch_name = f"ERR:{exc}"
-
-    payload = {
-        "commit_sha": commit_sha,
-        "branch": branch_name,
-        "arquivo_processado": str(pdf_path) if pdf_path is not None else None,
-        "pid": os.getpid(),
-        "db": cfg.db,
-        "host": cfg.host,
-        "schema": cfg.schema,
-    }
-    if extra:
-        payload.update(extra)
-    print(f"[AUDIT][{prefix}]", payload)
-
-
-def _mostrar_estado_publicacao(conn, pdf_path, numero_bloco):
-    schema = get_postgres_config().schema
-    with conn.cursor() as cursor:
-        cursor.execute(
-            f"""
-            SELECT
-                contratante,
-                contratante_normalizado
-            FROM {schema}.publicacoes
-            WHERE arquivo_path = %s
-              AND numero_bloco = %s
-            """,
-            (str(pdf_path), numero_bloco),
-        )
-        print("[AUDIT][SELECT_RESULT]", cursor.fetchall())
-
-
 def run():
 
-    _emitir_audit("RUN_START")
-    print("Iniciando Diário Processor...\n")
+    inicio_total = time.time()
+
+    print("--------------------------------------------------")
+    print("Iniciando Diário Processor")
 
     with postgres_connection() as conn:
         repository = PublicacaoRepository(conn)
@@ -149,10 +108,12 @@ def run():
 
         pdfs = listar_pdfs()
 
-        print(f"Total de PDFs encontrados: {len(pdfs)}\n")
+        print(f"PDFs encontrados: {len(pdfs)}")
+        print("--------------------------------------------------\n")
 
         novos = 0
         ignorados = 0
+        erros = 0
 
         REPROCESSAR_TUDO = True
 
@@ -160,7 +121,7 @@ def run():
         # LOOP PDFs
         # =================================================
 
-        for pdf in pdfs:
+        for idx, pdf in enumerate(pdfs, start=1):
 
             try:
 
@@ -179,11 +140,10 @@ def run():
 
                 diario_id = extrair_diario_id(pdf)
 
-                _emitir_audit("PROCESSANDO_PDF", pdf, {"diario_id": diario_id})
-                print("\n================================================")
-                print(f"Processando diário {diario_id}")
-                print(f"Arquivo: {pdf}")
-                print("================================================")
+                inicio_pdf = time.time()
+
+                print(f"[{idx}/{len(pdfs)}] Processando diário {diario_id}")
+                print(f"  Arquivo: {pdf.name}")
 
                 # =============================================
                 # TEXTO
@@ -199,29 +159,26 @@ def run():
                     extrair_data_publicacao(texto)
                 )
 
-                print(
-                    "DATA PUBLICACAO EXTRAIDA:",
-                    data_publicacao
-                )
-
                 # =============================================
                 # SEGMENTAÇÃO
                 # =============================================
 
                 blocos = segmentar_publicacoes(texto)
 
-                print(f"\nBlocos encontrados: {len(blocos)}")
+                print(f"  Blocos: {len(blocos)}")
 
                 # =============================================
                 # LOOP BLOCOS
                 # =============================================
 
+                total_eventos = 0
+                ec_aplicacoes = 0
+                ec_criterio = None
+
                 for i, bloco in enumerate(
                     blocos,
                     start=1
                 ):
-
-                    print(f"\n--- BLOCO {i} ---")
 
                     metadados = extrair_metadados_bloco(
                         bloco
@@ -249,25 +206,20 @@ def run():
                             str(pdf)
                         )
 
-                        _emitir_audit(
-                            "ETAPA2_EC",
-                            pdf,
-                            {
-                                "bloco": i,
-                                "applied": applied,
-                                "criterion": audit.get("criterion") if audit else None,
-                                "contratante": updated_metadados.get("contratante") if updated_metadados else None,
-                                "contratante_normalizado": updated_metadados.get("contratante_normalizado") if updated_metadados else None,
-                            },
-                        )
-
                         if applied:
                             metadados = updated_metadados
+                            ec_aplicacoes += 1
+                            ec_criterio = audit.get("criterion") if audit else None
+                            print(
+                                f"  EC aplicada | diario_{diario_id} | "
+                                f"bloco {prev_num} → {curr_num} | "
+                                f"critério {ec_criterio}"
+                            )
                     except Exception:
                         # silenciar falhas do enriquecimento para não interromper o pipeline
                         pass
 
-                    # 保存前保留当前 bloco作为 "previous" para próxima iteração
+                    # preserve bloco atual como "previous" para próxima iteração
                     previous_bloco = bloco
                     previous_metadados = metadados
                     previous_numero = i
@@ -283,15 +235,13 @@ def run():
                         i
                     )
 
-                    print("\nEVENTOS ENCONTRADOS:")
-
                     # =========================================
                     # LOOP EVENTOS
                     # =========================================
 
                     for evento in eventos:
 
-                        print(evento)
+                        total_eventos += 1
 
                         tipo_evento = evento.get("tipo_evento")
 
@@ -304,11 +254,6 @@ def run():
                                 evento,
                                 data_publicacao=data_publicacao
                             )
-                        )
-
-                        print(
-                            "EVENTO SALVO:",
-                            evento_id
                         )
 
                         # =====================================
@@ -330,15 +275,11 @@ def run():
                                     canonical_event
                                 )
 
-                                print(
-                                    "EVENTO CANONICO PUBLICADO"
-                                )
-
                         except Exception as e:
 
                             print(
-                                "Erro ao publicar evento:",
-                                e
+                                f"  [ERRO] Publicar evento canônico | "
+                                f"diário {diario_id} bloco {i}: {e}"
                             )
 
                         # =====================================
@@ -482,96 +423,8 @@ def run():
                             )
 
                     # =========================================
-                    # DEBUG METADADOS
-                    # =========================================
-
-                    print(
-                        f"Tipo identificado: "
-                        f"{metadados['tipo']}"
-                    )
-
-                    print(
-                        f"Processo identificado: "
-                        f"{metadados['processo']}"
-                    )
-
-                    print(
-                        f"Processo normalizado: "
-                        f"{metadados['processo_normalizado']}"
-                    )
-
-                    print(
-                        f"Contrato identificado: "
-                        f"{metadados['contrato']}"
-                    )
-
-                    print(
-                        f"Fornecedor identificado: "
-                        f"{metadados['fornecedor']}"
-                    )
-
-                    print(
-                        f"Fornecedor normalizado: "
-                        f"{metadados['fornecedor_normalizado']}"
-                    )
-
-                    print(
-                        f"Contratante identificado: "
-                        f"{metadados['contratante']}"
-                    )
-
-                    print(
-                        f"Contratante normalizado: "
-                        f"{metadados['contratante_normalizado']}"
-                    )
-
-                    print(
-                        f"Vigência identificada: "
-                        f"{metadados['vigencia']}"
-                    )
-
-                    print(
-                        f"Objeto identificado: "
-                        f"{metadados['objeto']}"
-                    )
-
-                    print(
-                        f"CNPJ identificado: "
-                        f"{metadados['cnpj']}"
-                    )
-
-                    if metadados["valores"]:
-
-                        print(
-                            f"Valores encontrados: "
-                            f"{metadados['valores'][:5]}"
-                        )
-
-                    else:
-
-                        print(
-                            "Nenhum valor encontrado."
-                        )
-
-                    print(
-                        f"Valor principal identificado: "
-                        f"{metadados['valor_principal']}"
-                    )
-
-                    # =========================================
                     # SALVA PUBLICAÇÃO
                     # =========================================
-
-                    _emitir_audit(
-                        "ETAPA3_BEFORE_REPOSITORY",
-                        pdf,
-                        {
-                            "bloco": i,
-                            "contratante": metadados.get("contratante"),
-                            "contratante_normalizado": metadados.get("contratante_normalizado"),
-                            "metadados": metadados,
-                        },
-                    )
 
                     repository.salvar_publicacao(
 
@@ -617,17 +470,27 @@ def run():
                 novos += 1
 
                 conn.commit()
-                _emitir_audit("ETAPA6_AFTER_COMMIT", pdf, {"bloco": i})
-                _mostrar_estado_publicacao(conn, pdf, i)
+
+                duracao = time.time() - inicio_pdf
+                ec_info = (
+                    f"{ec_aplicacoes} aplicação(ões) (critério {ec_criterio})"
+                    if ec_aplicacoes
+                    else "nenhuma aplicação"
+                )
+                print(f"  Eventos: {total_eventos}")
+                print(f"  EC: {ec_info}")
+                print(f"  Concluído em: {duracao:.1f}s\n")
 
             except Exception as e:
 
                 conn.rollback()
 
+                erros += 1
+
                 import traceback
 
                 print(
-                    f"Erro ao processar {pdf}: {e}"
+                    f"  [ERRO] diário {diario_id} | bloco {i if 'i' in locals() else '?'}: {e}"
                 )
 
                 traceback.print_exc()
@@ -636,9 +499,9 @@ def run():
         # CAMADA DE CONSOLIDAÇÃO
         # =========================================
 
-        print("\n========================================")
-        print("Iniciando consolidação do domínio...")
-        print("========================================")
+        print("--------------------------------------------------")
+        print("Consolidação")
+        print("--------------------------------------------------")
 
         # A persistência das evidências já foi confirmada. A consolidação
         # possui uma transação própria e não pode desfazer esses commits.
@@ -666,20 +529,23 @@ def run():
             conn.rollback()
             raise
 
-        print("\n========================================")
-        print("Resumo da execução:")
-        print(f"Novos processados: {novos}")
-        print(
-            f"Ignorados (já existentes): "
-            f"{ignorados}"
-        )
-        print("========================================")
+        duracao_total = time.time() - inicio_total
+        minutos = int(duracao_total // 60)
+        segundos = duracao_total % 60
 
-    target_pdf_path = Path("C:/automacoes/diario_bot/pdfs/2026/07/diario_3388.pdf")
-    target_numero_bloco = 5
-    _emitir_audit("ETAPA7_FINAL_SELECT", target_pdf_path, {"bloco": target_numero_bloco})
-    with postgres_connection() as conn_final:
-        _mostrar_estado_publicacao(conn_final, target_pdf_path, target_numero_bloco)
+        print()
+        print("--------------------------------------------------")
+        print("Resumo da execução")
+        print("--------------------------------------------------")
+        print(f"PDFs encontrados: {len(pdfs)}")
+        print(f"Processados:      {novos}")
+        print(f"Ignorados:        {ignorados}")
+        print(f"Erros:            {erros}")
+        if minutos:
+            print(f"Tempo total:      {minutos}m {segundos:.0f}s")
+        else:
+            print(f"Tempo total:      {duracao_total:.1f}s")
+        print("--------------------------------------------------")
 
 
 if __name__ == "__main__":
