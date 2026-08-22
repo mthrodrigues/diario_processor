@@ -1,4 +1,5 @@
 from events import extrair_eventos_bloco
+from main import _timeline_vinculo_valido
 from taxonomy.event_taxonomy import (
     DESIGNACAO_FISCAL,
     CONTRATACAO,
@@ -225,3 +226,12 @@ def test_exoneracao_gera_evento_com_agente_cargo_e_orgao():
     assert evento["agente"]["nome"] == "JOÃO DA SILVA"
     assert evento["cargo"] == "Diretor de Compras"
     assert evento["orgao"] == "Secretaria Municipal de Administração"
+
+
+def test_timeline_vinculo_requer_pessoa_e_orgao():
+    assert _timeline_vinculo_valido(NOMEACAO, None, None) is False
+    assert _timeline_vinculo_valido(NOMEACAO, 10, None) is False
+    assert _timeline_vinculo_valido(NOMEACAO, None, 20) is False
+    assert _timeline_vinculo_valido(NOMEACAO, 10, 20) is True
+    assert _timeline_vinculo_valido(EXONERACAO, 10, 20) is True
+    assert _timeline_vinculo_valido(DESIGNACAO_FISCAL, 10, 20) is False

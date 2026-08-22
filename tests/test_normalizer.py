@@ -49,6 +49,40 @@ class NormalizerTest(unittest.TestCase):
         self.assertIsNone(normalize_fornecedor(None))
         self.assertIsNone(normalize_fornecedor("   "))
 
+    def test_fundo_municipal_positivo(self):
+        casos = [
+            ("O Fundo Municipal de Saúde", "FUNDO MUNICIPAL SAUDE"),
+            ("O Fundo Municipal de Saúde de Teresópolis", "FUNDO MUNICIPAL SAUDE"),
+            ("O Município de Teresópolis através do Fundo Municipal de Saúde", "FUNDO MUNICIPAL SAUDE"),
+            ("O Município de Teresópolis através do Fundo Municipal de Saúde de Teresópolis", "FUNDO MUNICIPAL SAUDE"),
+            ("O Fundo Municipal de Assistência Social", "FUNDO MUNICIPAL ASSISTENCIA SOCIAL"),
+            ("O Município de Teresópolis através do Fundo Municipal de Assistência Social", "FUNDO MUNICIPAL ASSISTENCIA SOCIAL"),
+            ("O Fundo Municipal de Segurança Pública", "FUNDO MUNICIPAL SEGURANCA PUBLICA"),
+            ("O Fundo Municipal dos Direitos da Criança e do Adolescente de Teresópolis", "FUNDO MUNICIPAL DOS DIREITOS DA CRIANCA E DO ADOLESCENTE"),
+            ("O Fundo Municipal de Assistência Social e Direitos Humanos", "FUNDO MUNICIPAL ASSISTENCIA SOCIAL E DIREITOS HUMANOS"),
+        ]
+
+        for valor, esperado in casos:
+            with self.subTest(valor=valor):
+                self.assertEqual(normalize_contratante(valor), esperado)
+
+    def test_fundo_municipal_negativo(self):
+        casos = [
+            "O Fundo Municipal de Saúde e Mitra Diocesana de Petrópolis",
+            "O Fundo Municipal de Saúde e os Srs",
+            "O Fundo Municipal de Solidariedade do Município de Teresópolis",
+            "O Município de Teresópolis através da Secretaria Municipal de Educação",
+            "O Município de Teresópolis através da Secretaria Municipal de Assistência Social e Direitos Humanos e do Fundo Municipal de Saúde",
+            "Secretaria Municipal de Assistência Social e Direitos Humanos",
+            "O Fundo Municipal dos Direitos da Criança e do Adolescente e o Fundo Municipal de Assistência Social",
+            "O Fundo Municipal de Assistência Social e o Fundo Municipal dos Direitos da Criança e do Adolescente de Teresópolis",
+            "O Município de Teresópolis através da Secretaria Municipal de Administração, O Fundo Municipal de Saúde e o Fundo Municipal de Assistência Social e Direitos Humanos",
+        ]
+
+        for valor in casos:
+            with self.subTest(valor=valor):
+                self.assertEqual(normalize_contratante(valor), normalize_entidade(valor))
+
     def test_normaliza_processo_sem_alterar_identidade(self):
         self.assertIsNone(normalize_processo(None))
         self.assertIsNone(normalize_processo(""))

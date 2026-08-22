@@ -78,6 +78,16 @@ from consolidador_processos import consolidar_postgres
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
 
+def _timeline_vinculo_valido(tipo_evento, entidade_pessoa_id, entidade_orgao_id):
+    if tipo_evento not in (NOMEACAO, EXONERACAO):
+        return False
+
+    return (
+        entidade_pessoa_id is not None
+        and entidade_orgao_id is not None
+    )
+
+
 def run():
 
     inicio_total = time.time()
@@ -286,6 +296,9 @@ def run():
                         # AGENTE
                         # =====================================
 
+                        entidade_pessoa_id = None
+                        entidade_orgao_id = None
+
                         agente_nome = (
                             evento.get("agente", {})
                             .get("nome")
@@ -349,31 +362,36 @@ def run():
                         # TIMELINE FUNCIONAL
                         # =========================================
 
-                        if tipo_evento == NOMEACAO:
+                        if _timeline_vinculo_valido(
+                            tipo_evento,
+                            entidade_pessoa_id,
+                            entidade_orgao_id,
+                        ):
+                            if tipo_evento == NOMEACAO:
 
-                            timeline_repository.abrir_vinculo(
+                                timeline_repository.abrir_vinculo(
 
-                                entidade_pessoa_id,
-                                entidade_orgao_id,
+                                    entidade_pessoa_id,
+                                    entidade_orgao_id,
 
-                                "LOTACAO",
+                                    "LOTACAO",
 
-                                data_publicacao,
+                                    data_publicacao,
 
-                                evento_id
-                            )
+                                    evento_id
+                                )
 
-                        elif tipo_evento == EXONERACAO:
+                            elif tipo_evento == EXONERACAO:
 
-                            timeline_repository.fechar_vinculo(
+                                timeline_repository.fechar_vinculo(
 
-                                entidade_pessoa_id,
-                                entidade_orgao_id,
+                                    entidade_pessoa_id,
+                                    entidade_orgao_id,
 
-                                data_publicacao,
+                                    data_publicacao,
 
-                                evento_id
-                            )
+                                    evento_id
+                                )
 
                         # =====================================
                         # ÓRGÃO
