@@ -279,6 +279,41 @@ def test_fornecedor_contratada():
 
     assert extrair_fornecedor(texto) == "EMPRESA XPTO LTDA"
 
+def test_fornecedor_contratada_entidade_publica():
+    texto = """
+    CONTRATADA: Fundo Municipal dos Direitos da Criança e do adolescente.
+    """
+
+    assert (
+        extrair_fornecedor(texto)
+        == "Fundo Municipal dos Direitos da Criança e do adolescente"
+    )
+
+def test_fornecedor_caso_real_833():
+    texto = """
+    9° Termo Aditivo ao Contrato n°009.008.2025
+    Contrato n° 009.008.2025 (A aquisição de materiais de almoxarifado e higiene para o
+    Fundo Municipal de Assistência Social.).Contratante: O Município de Teresópolis através
+    da Secretaria Assistência Social e Direitos Humanos. Contratada: Fundo Municipal
+    dos Direitos da Criança e do adolescente . - Objeto: Presente termo Aditivo
+    rerratificação da tabela . Valor R$: 35.428,96 (trinta e cinco mil, quatrocentos e vinte e
+    oito reais e noventa e seis centavos). Processo n° 2.244/2025.
+    PELO CONTRATANTE: MARIA DAS GRAÇAS GRANITO DOS SANTOS
+    PELA CONTRATADA: WERICON DE JESUS MATOS.
+    """
+
+    assert (
+        extrair_fornecedor(texto)
+        == "Fundo Municipal dos Direitos da Criança e do adolescente"
+    )
+
+def test_fornecedor_ignora_representante_pela_contratada():
+    texto = """
+    PELA CONTRATADA: AMANDIO DO NASCIMENTO.
+    """
+
+    assert extrair_fornecedor(texto) is None
+
 def test_fornecedor_ignora_orgao_publico():
 
     texto = """

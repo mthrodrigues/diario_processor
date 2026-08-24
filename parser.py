@@ -454,8 +454,17 @@ def extrair_fornecedor(texto):
     # =====================================================
 
     rotulos_confiaveis = [
-        r'CONTRATADA',
-        r'CONTRATADO',
+        r'(?<!PELA\s)CONTRATADA',
+        r'(?<!PELO\s)CONTRATADO',
+    ]
+
+    blacklist_orgao = [
+        "SECRETARIA",
+        "PREFEITURA",
+        "DEPARTAMENTO",
+        "SUPRIMENTOS",
+        "DIÁRIO OFICIAL",
+        "PODER EXECUTIVO",
     ]
 
     candidato = _extrair_campo_contextual(
@@ -468,19 +477,9 @@ def extrair_fornecedor(texto):
 
         candidato_upper = candidato.upper()
 
-        blacklist = [
-        "SECRETARIA",
-        "PREFEITURA",
-        "MUNICIPAL",
-        "DEPARTAMENTO",
-        "SUPRIMENTOS",
-        "DIÁRIO OFICIAL",
-        "PODER EXECUTIVO",
-        ]
-
         if any(
             re.search(rf"\b{re.escape(b)}\b", candidato_upper)
-            for b in blacklist
+            for b in blacklist_orgao
         ):
             return None
 
@@ -510,16 +509,6 @@ def extrair_fornecedor(texto):
         r'CESSION[ÁA]RIO',
     ]
 
-    blacklist = [
-        "SECRETARIA",
-        "PREFEITURA",
-        "MUNICIPAL",
-        "DEPARTAMENTO",
-        "SUPRIMENTOS",
-        "DIÁRIO OFICIAL",
-        "PODER EXECUTIVO",
-    ]
-
     candidato = _extrair_campo_contextual(
         texto,
         rotulos_secundarios,
@@ -533,7 +522,7 @@ def extrair_fornecedor(texto):
 
     if any(
         re.search(rf"\b{re.escape(b)}\b", candidato_upper)
-        for b in blacklist
+        for b in blacklist_orgao
     ):
         return None
 
