@@ -62,7 +62,11 @@ RE_BLOCO_AUTENTICACAO = re.compile(
     r"""
     Para\s+verificar\s+a\s+autenticidade
     .*?
-    Pág\.\s*\d+\s*de\s*\d+\s*
+    (?=
+        DIÁRIO\s+OFICIAL\s+ELETRÔNICO
+        |
+        \Z
+    )
     """,
     re.IGNORECASE | re.DOTALL | re.VERBOSE,
 )
@@ -85,6 +89,75 @@ def _remover_bloco_autenticacao(valor: str) -> str:
         return ""
 
     return RE_BLOCO_AUTENTICACAO.sub("", valor).strip()
+
+def _eh_cabecalho_diario(linhas, indice):
+    if indice + 5 >= len(linhas):
+        return False
+
+    bloco = [
+        linhas[indice + offset].strip()
+        for offset in range(6)
+    ]
+
+    return (
+        bloco[0].upper() == "DIÁRIO OFICIAL ELETRÔNICO"
+        and bloco[1].upper() == "MUNICÍPIO DE TERESÓPOLIS"
+        and bloco[2].upper() == "ESTADO DO RIO DE JANEIRO"
+        and bloco[3].upper() == "PODER EXECUTIVO MUNICIPAL"
+        and bloco[4].upper().startswith("CRIADO PELA LEI MUNICIPAL")
+        and re.search(
+            r"EDIÇÃO\s+\d+.*PÁG\.\s*\d+\s+DE\s+\d+",
+            bloco[5],
+            flags=re.IGNORECASE,
+        )
+    )
+
+
+def _remover_cabecalhos_repetidos(texto):
+    if not texto:
+        return ""
+
+    linhas = texto.splitlines()
+
+    resultado = []
+    ocorrencia = 0
+    i = 0
+
+    while i < len(linhas):
+
+        if _eh_cabecalho_diario(linhas, i):
+            ocorrencia += 1
+
+            if ocorrencia == 1:
+                resultado.extend(linhas[i:i + 6])
+
+            i += 6
+            continue
+
+        resultado.append(linhas[i])
+        i += 1
+
+    return "\n".join(resultado)
+
+def sanear_texto_pdf(texto):
+    """
+    Remove resíduos textuais inequivocamente não documentais
+    inseridos pelo PDF/OCR.
+
+    Nesta primeira etapa, remove apenas blocos de autenticação
+    digital e cabeçalhos físicos repetidos das páginas seguintes.
+
+    Preserva o primeiro cabeçalho do Diário, pois ele contém
+    a informação necessária para rastreabilidade da data de publicação.
+    """
+
+    if not texto:
+        return ""
+
+    texto = _remover_bloco_autenticacao(texto)
+    texto = _remover_cabecalhos_repetidos(texto)
+
+    return texto
 
 def _limpar_campo_documental(valor):
     if not valor:

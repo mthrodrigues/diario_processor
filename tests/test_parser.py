@@ -1,5 +1,9 @@
 import pytest
 
+from datetime import date
+
+from scanner import extrair_data_publicacao
+
 from parser import (
     extrair_processo,
     identificar_tipo,
@@ -10,6 +14,7 @@ from parser import (
     extrair_valor_principal,
     extrair_objeto,
     extrair_vigencia,
+    sanear_texto_pdf,
     segmentar_publicacoes,
 )
 
@@ -656,3 +661,77 @@ def test_segmentacao_nao_quebra_cabecalho_de_tabela():
     blocos = segmentar_publicacoes(texto)
 
     assert len(blocos) == 1
+
+def test_sanear_texto_pdf_preserva_primeiro_cabecalho_e_remove_repetidos():
+    texto = """DIÁRIO OFICIAL ELETRÔNICO
+Município de Teresópolis
+Estado do Rio de Janeiro
+PODER EXECUTIVO MUNICIPAL
+Criado pela Lei Municipal nº 3.463, de 07 de junho de 2016.
+Ano XI - Edição 55 SEGUNDA, 23 DE MARÇO DE 2026 Pág. 1 de 8
+CONTEÚDO 1
+
+DIÁRIO OFICIAL ELETRÔNICO
+Município de Teresópolis
+Estado do Rio de Janeiro
+PODER EXECUTIVO MUNICIPAL
+Criado pela Lei Municipal nº 3.463, de 07 de junho de 2016.
+Ano XI - Edição 55 SEGUNDA, 23 DE MARÇO DE 2026 Pág. 2 de 8
+CONTEÚDO 2
+"""
+
+    resultado = sanear_texto_pdf(texto)
+
+    assert resultado.count("DIÁRIO OFICIAL ELETRÔNICO") == 1
+    assert resultado.count("Município de Teresópolis") == 1
+    assert "CONTEÚDO 1" in resultado
+    assert "CONTEÚDO 2" in resultado
+    assert "23 DE MARÇO DE 2026" in resultado
+
+def test_sanear_texto_pdf_preserva_data_publicacao():
+    texto = """DIÁRIO OFICIAL ELETRÔNICO
+Município de Teresópolis
+Estado do Rio de Janeiro
+PODER EXECUTIVO MUNICIPAL
+Criado pela Lei Municipal nº 3.463, de 07 de junho de 2016.
+Ano XI - Edição 55 SEGUNDA, 23 DE MARÇO DE 2026 Pág. 1 de 8
+CONTEÚDO
+"""
+
+    resultado = sanear_texto_pdf(texto)
+
+    from scanner import extrair_data_publicacao
+
+    assert extrair_data_publicacao(resultado).isoformat() == "2026-03-23"
+
+def test_sanear_texto_pdf_preserva_data_publicacao_e_remove_autenticacao():
+    texto = """
+DIÁRIO OFICIAL ELETRÔNICO
+Município de Teresópolis
+Estado do Rio de Janeiro
+Ano XI - Edição 55 SEGUNDA, 23 DE MARÇO DE 2026 Pág. 1 de 8
+PROCURADORIA GERAL
+GERAL
+CORRIGENDA DE JANEIRO DE 2026
+
+Para verificar a autenticidade, acesse: Documento assinado digitalmente
+[https://atos.teresopolis.rj.gov.br//diario#/verifi](https://atos.teresopolis.rj.gov.br//diario#/verifi) conforme MP nº 2.200-2 de 24/08/2001,
+car que institui a Infraestrutura de Chaves
+Chave de verificação: STIZTebLFhD7eLs Públicas Brasileira - ICP-Brasil.
+
+5° Termo de Apostilamento ao Contrato n° 030.10.2019
+"""
+
+    saneado = sanear_texto_pdf(texto)
+
+    # O bloco de autenticação deve ser removido.
+    assert "Para verificar a autenticidade" not in saneado
+    assert "Chave de verificação:" not in saneado
+
+    # O cabeçalho inicial do Diário deve ser preservado.
+    assert "DIÁRIO OFICIAL ELETRÔNICO" in saneado
+    assert "Município de Teresópolis" in saneado
+    assert "23 DE MARÇO DE 2026" in saneado
+
+    # A data utilizada pelo pipeline deve continuar sendo recuperável.
+    assert extrair_data_publicacao(saneado) == date(2026, 3, 23)
