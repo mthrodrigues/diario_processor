@@ -1,5 +1,6 @@
 import sys
 import time
+import pdfplumber
 
 try:
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -33,6 +34,10 @@ from infra.db.connection import postgres_connection
 
 from infra.db.repositories.publicacao_repository import (
     PublicacaoRepository
+)
+
+from infra.db.repositories.pot_repository import (
+    PotRepository
 )
 
 from infra.db.repositories.evento_repository import (
@@ -77,6 +82,8 @@ from canonical_event_builder import (
 from consolidador_processos import consolidar_postgres
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
+from pot_extractor import extrair_publicacoes_pot_pdf
+
 
 def _timeline_vinculo_valido(tipo_evento, entidade_pessoa_id, entidade_orgao_id):
     if tipo_evento not in (NOMEACAO, EXONERACAO):
@@ -97,6 +104,7 @@ def run():
 
     with postgres_connection() as conn:
         repository = PublicacaoRepository(conn)
+        pot_repository = PotRepository(conn)
 
         evento_repository = EventoRepository(conn)
 
@@ -184,6 +192,8 @@ def run():
                 total_eventos = 0
                 ec_aplicacoes = 0
                 ec_criterio = None
+                pot_indice = 0
+                publicacoes_pot = []
 
                 for i, bloco in enumerate(
                     blocos,
@@ -193,6 +203,21 @@ def run():
                     metadados = extrair_metadados_bloco(
                         bloco
                     )
+
+                    pot_publicacao = None
+
+                    if metadados["tipo"] == "pot":
+
+                        if not publicacoes_pot:
+                            with pdfplumber.open(pdf) as pdf_aberto:
+                                publicacoes_pot = (
+                                    extrair_publicacoes_pot_pdf(
+                                        pdf_aberto
+                                    )
+                                )
+
+                        pot_publicacao = publicacoes_pot[pot_indice]
+                        pot_indice += 1
 
                     # ================================
                     # Enriquecimento Contextual (Regra 001)
@@ -444,7 +469,7 @@ def run():
                     # SALVA PUBLICAÇÃO
                     # =========================================
 
-                    repository.salvar_publicacao(
+                    publicacao_id = repository.salvar_publicacao(
 
                         diario_id,
                         i,
@@ -483,6 +508,20 @@ def run():
                         contrato_normalizado=metadados[
                             "contrato_normalizado"
                         ],
+                    )
+
+                    if metadados["tipo"] == "pot":
+                        pot_repository.substituir_registros(
+                            publicacao_id,
+                            pot_publicacao,
+                        )
+
+                if pot_indice != len(publicacoes_pot):
+                    raise RuntimeError(
+                        "Inconsistência na associação POT: "
+                        f"{pot_indice} bloco(s) POT processado(s), "
+                        f"mas {len(publicacoes_pot)} publicação(ões) POT "
+                        "extraída(s) do PDF."
                     )
 
                 novos += 1

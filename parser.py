@@ -441,6 +441,13 @@ def identificar_tipo(texto):
 
     texto_upper = texto.upper()
 
+    # POT — Programa Operação Trabalho
+    if (
+        "BENEFICIÁRIOS DO PROGRAMA OPERAÇÃO TRABALHO" in texto_upper
+        or "BENEFICIARIOS DO PROGRAMA OPERACAO TRABALHO" in texto_upper
+    ):
+        return "pot"
+
     # ordem importa
     if "TERMO ADITIVO" in texto_upper or "ADITIVO" in inicio:
         return "aditivo"

@@ -735,3 +735,22 @@ Chave de verificação: STIZTebLFhD7eLs Públicas Brasileira - ICP-Brasil.
 
     # A data utilizada pelo pipeline deve continuar sendo recuperável.
     assert extrair_data_publicacao(saneado) == date(2026, 3, 23)
+
+def test_identifica_pot():
+    texto = """
+    SECRETARIA MUNICIPAL DE EDUCAÇÃO
+    BENEFICIÁRIOS DO PROGRAMA OPERAÇÃO TRABALHO (POT)
+
+    Nº Beneficiário(s)
+    1 Maria da Silva
+    """
+
+    assert identificar_tipo(texto) == "pot"
+
+def test_nao_classifica_pot_apenas_pela_sigla():
+    texto = """
+    O documento menciona a palavra POT,
+    mas não contém o título do Programa Operação Trabalho.
+    """
+
+    assert identificar_tipo(texto) != "pot"

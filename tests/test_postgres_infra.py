@@ -6,6 +6,7 @@ from config import PostgresConfig, get_postgres_config
 from infra.db.connection import PostgresConnectionPool
 from infra.db.migrations.runner import quote_ident, run_migrations
 from infra.db.repositories.publicacao_repository import PublicacaoRepository
+from infra.db.repositories.pot_repository import PotRepository
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
 
@@ -152,9 +153,10 @@ class PostgresInfraTest(unittest.TestCase):
 
     def test_repository_salvar_publicacao_usa_schema_dedicado(self):
         conn = FakeConnection()
+        conn.fetchone_queue.append((123,))
         repo = PublicacaoRepository(conn, schema="diario")
 
-        repo.salvar_publicacao(
+        publicacao_id = repo.salvar_publicacao(
             diario_id=1,
             numero_bloco=1,
             arquivo_path="diario_1.pdf",
@@ -187,9 +189,11 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertEqual(params[-2], "1/2026")
         self.assertEqual(params[-1], "2026-07-30")
         self.assertIn("data_publicacao", sql)
+        self.assertEqual(publicacao_id, 123)
 
     def test_repository_salvar_publicacao_recalcula_contratante_normalizado(self):
         conn = FakeConnection()
+        conn.fetchone_queue.append((123,))
         repo = PublicacaoRepository(conn, schema="diario")
 
         repo.salvar_publicacao(
@@ -238,6 +242,169 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertEqual(resultado[0]["ocorrencias"], 2)
         self.assertEqual(resultado[0]["valor_total"], 300.0)
 
+    def test_repository_pot_salva_registros(self):
+        conn = FakeConnection()
+        repo = PotRepository(conn, schema="diario")
+
+        registros = [
+            {
+                "numero": "1",
+                "beneficiario": "Maria da Silva",
+                "unidade": "EM Exemplo",
+                "horario_atuacao": None,
+                "area_aprendizado": "Apoio/Escolar",
+                "data_inclusao": "05/02/2026",
+                "data_desligamento": None,
+                "substituicao": "Joana da Silva",
+                "texto_bruto": "1 Maria da Silva EM Exemplo",
+            },
+            {
+                "numero": "2",
+                "beneficiario": "João dos Santos",
+                "unidade": "EM Teste",
+                "horario_atuacao": "07:00h às 13:00h",
+                "area_aprendizado": "APOIO/ESCOLAR",
+                "data_inclusao": None,
+                "data_desligamento": "21/08/2026",
+                "substituicao": None,
+                "texto_bruto": "2 João dos Santos EM Teste",
+            },
+        ]
+
+        quantidade = repo.salvar_registros(
+            publicacao_id=123,
+            registros=registros,
+        )
+
+        self.assertEqual(quantidade, 2)
+        self.assertEqual(len(conn.executed), 2)
+
+        sql_1, params_1 = conn.executed[0]
+        sql_2, params_2 = conn.executed[1]
+
+        self.assertIn('"diario".pot_beneficiarios', sql_1)
+        self.assertIn('"diario".pot_beneficiarios', sql_2)
+
+        self.assertEqual(params_1[0], 123)
+        self.assertEqual(params_1[1], "1")
+        self.assertEqual(params_1[2], "Maria da Silva")
+        self.assertEqual(params_1[3], "EM Exemplo")
+        self.assertIsNone(params_1[4])
+        self.assertEqual(params_1[5], "Apoio/Escolar")
+        self.assertEqual(params_1[6], "2026-02-05")
+        self.assertIsNone(params_1[7])
+        self.assertEqual(params_1[8], "Joana da Silva")
+
+        self.assertEqual(params_2[0], 123)
+        self.assertEqual(params_2[1], "2")
+        self.assertEqual(params_2[2], "João dos Santos")
+        self.assertEqual(params_2[4], "07:00h às 13:00h")
+        self.assertEqual(params_2[5], "APOIO/ESCOLAR")
+        self.assertIsNone(params_2[6])
+        self.assertEqual(params_2[7], "2026-08-21")
+        self.assertIsNone(params_2[8])
+
+    def test_repository_pot_nao_executa_sem_registros(self):
+        conn = FakeConnection()
+        repo = PotRepository(conn, schema="diario")
+
+        quantidade = repo.salvar_registros(
+            publicacao_id=123,
+            registros=[],
+        )
+
+        self.assertEqual(quantidade, 0)
+        self.assertEqual(conn.executed, [])
+
+    def test_repository_pot_substitui_registros(self):
+        conn = FakeConnection()
+        repo = PotRepository(conn, schema="diario")
+
+        registros = [
+            {
+                "numero": "1",
+                "beneficiario": "Maria da Silva",
+                "unidade": "EM Exemplo",
+                "horario_atuacao": None,
+                "area_aprendizado": "Apoio/Escolar",
+                "data_inclusao": "05/02/2026",
+                "data_desligamento": None,
+                "substituicao": "Joana da Silva",
+                "texto_bruto": "1 Maria da Silva EM Exemplo",
+            },
+            {
+                "numero": "2",
+                "beneficiario": "João dos Santos",
+                "unidade": "EM Teste",
+                "horario_atuacao": "07:00h às 13:00h",
+                "area_aprendizado": "Apoio/Escolar",
+                "data_inclusao": None,
+                "data_desligamento": "21/08/2026",
+                "substituicao": None,
+                "texto_bruto": "2 João dos Santos EM Teste",
+            },
+        ]
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=123,
+            registros=registros,
+        )
+
+        self.assertEqual(quantidade, 2)
+        self.assertEqual(len(conn.executed), 3)
+
+        sql_delete, params_delete = conn.executed[0]
+
+        self.assertIn(
+            'DELETE FROM "diario".pot_beneficiarios',
+            sql_delete,
+        )
+        self.assertEqual(
+            params_delete,
+            (123,),
+        )
+
+        sql_insert_1, params_1 = conn.executed[1]
+        sql_insert_2, params_2 = conn.executed[2]
+
+        self.assertIn(
+            '"diario".pot_beneficiarios',
+            sql_insert_1,
+        )
+        self.assertIn(
+            '"diario".pot_beneficiarios',
+            sql_insert_2,
+        )
+
+        self.assertEqual(params_1[0], 123)
+        self.assertEqual(params_1[1], "1")
+        self.assertEqual(params_1[2], "Maria da Silva")
+        self.assertEqual(params_1[6], "2026-02-05")
+
+        self.assertEqual(params_2[0], 123)
+        self.assertEqual(params_2[1], "2")
+        self.assertEqual(params_2[2], "João dos Santos")
+        self.assertEqual(params_2[7], "2026-08-21")
+
+    def test_repository_pot_substitui_registros_por_lista_vazia(self):
+        conn = FakeConnection()
+        repo = PotRepository(conn, schema="diario")
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=123,
+            registros=[],
+        )
+
+        self.assertEqual(quantidade, 0)
+        self.assertEqual(len(conn.executed), 1)
+
+        sql, params = conn.executed[0]
+
+        self.assertIn(
+            'DELETE FROM "diario".pot_beneficiarios',
+            sql,
+        )
+        self.assertEqual(params, (123,))
 
 if __name__ == "__main__":
     unittest.main()

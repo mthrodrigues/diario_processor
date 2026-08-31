@@ -97,7 +97,12 @@ class PublicacaoRepository:
                 processo_normalizado,
                 data_publicacao,
             )
-            cursor.execute(sql, params)
+            cursor.execute(
+                sql + " RETURNING id",
+                params,
+            )
+
+            return cursor.fetchone()[0]
 
     def ja_processado(self, arquivo_path):
         with self.conn.cursor() as cursor:
