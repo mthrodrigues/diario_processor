@@ -162,6 +162,33 @@ def test_identifica_extrato():
 
     assert identificar_tipo(texto) == "extrato"
 
+def test_identifica_corrigenda_isolada():
+    texto = """
+    CORRIGENDA DA PUBLICAÇÃO DE 12 DE DEZEMBRO DE 2025
+
+    Onde se lê: "Contrato n° 006.11.2021"
+
+    Leia-se: "Contrato n° 007.11.2021"
+    """
+
+    assert identificar_tipo(texto) == "corrigenda"
+
+def test_identifica_contrato_com_corrigenda():
+    texto = """
+    CONTRATO Nº 014.02.2026
+
+    Contratante: O Município de Teresópolis.
+    Contratada: EMPRESA XPTO LTDA.
+
+    Objeto: Prestação de serviços.
+
+    CORRIGENDA
+
+    Onde se lê: Contrato nº 014.02.2026
+    Leia-se: Contrato nº 014.02.2019
+    """
+
+    assert identificar_tipo(texto) == "contrato"
 
 # =====================================================
 # TESTES - EXTRAÇÃO DE CONTRATO
@@ -754,3 +781,22 @@ def test_nao_classifica_pot_apenas_pela_sigla():
     """
 
     assert identificar_tipo(texto) != "pot"
+
+def test_segmentacao_nao_quebra_contrato_com_palavra_contrato_em_continuacao():
+    texto = """
+    CONTRATO Nº 008.023.2026
+
+    Contratante: O Município de Teresópolis.
+    Contratada: Sociedade Religiosa Carmelo Espírito Santo.
+
+    Prazo: O presente
+    contrato vigerá pelo prazo de 12 (doze) meses contados a partir da data de sua
+    assinatura, após termino o contrato passará por avaliação da Sociedade Carmelo que
+    decidirá sobre a renovação.
+
+    Processo nº 21.580/2026.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1

@@ -1,0 +1,17 @@
+{
+    "blocos": [
+        {
+            "numero_bloco": 1,
+            "tipo": "corrigenda",
+            "processo": null,
+            "contrato": "006.11.2021",
+            "contratante": null,
+            "fornecedor": null,
+            "cnpj": null,
+            "valores": [],
+            "valor_principal": null,
+            "vigencia": null,
+            "objeto": null
+        }
+    ]
+}

@@ -28,7 +28,7 @@ MARCADORES_FIM_CAMPO = [
 ]
 
 INICIOS_PUBLICACAO = [
-    r'CONTRATO\b',
+    r'CONTRATO(?:\s+(?:ADMINISTRATIVO|DE\s+LOCAÇÃO))?\s+N[º°O.]?\s*\S+',
     r'EXTRATO\b',
     r'AVISO\b',
     r'PORTARIA\b',
@@ -238,6 +238,7 @@ def _linha_continua_frase(linha_anterior):
         " dos",
         " das",
         " de",
+        " o",
         " e",
     ))
 
@@ -263,6 +264,24 @@ def _eh_inicio_publicacao(linha, linha_anterior=None):
     #
     if _linha_continua_frase(linha_anterior):
         return False
+
+    #
+    # Continuação de corrigenda
+    #
+    if linha_anterior:
+        linha_anterior_upper = linha_anterior.strip().upper()
+
+        if linha_anterior_upper.startswith((
+            "ONDE SE LÊ:",
+            "ONDE-SE LÊ:",
+            "ONDE SE LE:",
+            "ONDE-SE LE:",
+            "LEIA-SE:",
+            "LEIA SE:",
+            "LEIA-SE",
+            "LEIA SE",
+        )):
+            return False
 
     #
     # Cabeçalhos de tabelas de contratos
@@ -394,9 +413,13 @@ def identificar_tipo(texto):
     """
 
     linhas = [linha.strip().upper() for linha in texto.splitlines() if linha.strip()]
-    inicio = "\n".join(linhas[:4])
 
     tipos_por_inicio = [
+
+        (
+            r'^CORRIGENDA\b',
+            "corrigenda"
+        ),
 
         # Termos numerados
         (
@@ -434,7 +457,26 @@ def identificar_tipo(texto):
         (r'^ADJUDICA[ÇC][ÃA]O\b', "adjudicacao"),
         (r'^EDITAL\b', "edital"),
     ]
-    
+
+    inicio = ""
+
+    for indice, linha in enumerate(linhas):
+
+        # Ignora cabeçalho físico do Diário.
+        if linha.startswith(LINHAS_BOILERPLATE):
+            continue
+
+        # Ignora cabeçalho de tabela contratual.
+        if re.match(r"CONTRATO\s+N[º°O.]?\s*:", linha):
+            continue
+
+        if any(re.search(padrao, linha) for padrao, _ in tipos_por_inicio):
+            inicio = "\n".join(linhas[indice:indice + 4])
+            break
+
+    if not inicio:
+        inicio = "\n".join(linhas[:4])
+
     for padrao, tipo in tipos_por_inicio:
         if re.search(padrao, inicio):
             return tipo
@@ -498,7 +540,6 @@ def identificar_tipo(texto):
         return "termo"
 
     return "outro"
-
 
 def extrair_processo(texto):
     """
