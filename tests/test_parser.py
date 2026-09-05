@@ -800,3 +800,193 @@ def test_segmentacao_nao_quebra_contrato_com_palavra_contrato_em_continuacao():
     blocos = segmentar_publicacoes(texto)
 
     assert len(blocos) == 1
+
+def test_extrair_fornecedor_com_bloco_autenticacao_entre_nome():
+    from textwrap import dedent
+
+    texto = dedent("""
+        DIÁRIO OFICIAL ELETRÔNICO
+        Município de Teresópolis
+        Estado do Rio de Janeiro
+        PODER EXECUTIVO MUNICIPAL
+        Criado pela Lei Municipal nº 3.463, de 07 de junho de 2016.
+        Ano XI - Edição 32 SEXTA, 13 DE FEVEREIRO DE 2026 Pág. 1 de 15
+
+        Termo Aditivo ao Contrato n° 001.004.2024
+        Contratante: O Município de Teresópolis.
+        Contratada: Erictel Assessoria de Telecomunicações
+        Para verificar a autenticidade, acesse: Documento assinado digitalmente
+        https://atos.teresopolis.rj.gov.br/diario#/verifi
+        conforme MP nº 2.200-2 de 24/08/2001.
+        DIÁRIO OFICIAL ELETRÔNICO
+        Município de Teresópolis
+        Estado do Rio de Janeiro
+        PODER EXECUTIVO MUNICIPAL
+        Criado pela Lei Municipal nº 3.463, de 07 de junho de 2016.
+        Ano XI - Edição 32 SEXTA, 13 DE FEVEREIRO DE 2026 Pág. 2 de 15
+        Ltda. - Objeto: Fica prorrogado por mais 12 meses.
+    """).strip()
+
+    texto_saneado = sanear_texto_pdf(texto)
+
+    assert extrair_fornecedor(texto_saneado) == (
+        "Erictel Assessoria de Telecomunicações Ltda"
+    )
+
+def test_identifica_decreto():
+    texto = (
+        "DECRETO Nº 6.572, DE 30 DE DEZEMBRO DE 2025.\n"
+        "EMENTA: Autoriza a celebração de parceria institucional.\n"
+        "O PREFEITO MUNICIPAL DE TERESÓPOLIS,\n"
+        "usando das atribuições que lhe confere a legislação."
+    )
+
+    assert identificar_tipo(texto) == "decreto"
+
+
+def test_identifica_resolucao():
+    texto = (
+        "RESOLUÇÃO Nº 5, DE 2026.\n"
+        "Dispõe sobre normas administrativas.\n"
+        "O órgão competente resolve:\n"
+        "Art. 1º ..."
+    )
+
+    assert identificar_tipo(texto) == "resolucao"
+
+def test_segmentacao_nao_cria_novo_bloco_com_termo_minusculo():
+    texto = """
+    2° Termo Aditivo ao Contrato n° 008.009.2025
+    Contratada: Prime Consultoria e Assessoria Empresarial Ltda. - Objeto: Constitui objeto do presente
+    termo aditivo ao Contrato n.º 008.009.2025, a prorrogação de prazo.
+    """
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+    assert "termo aditivo ao Contrato" in blocos[0]
+
+
+def test_segmentacao_nao_cria_novo_bloco_com_termo_final():
+    texto = """
+    Texto administrativo sobre classificação de informações constará no bojo dos respectivos processos
+    termo final; a justificativa para a classificação permanece registrada.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+    assert "termo final" in blocos[0]
+
+
+def test_segmentacao_nao_cria_novo_bloco_com_termo_de_posse():
+    texto = """
+    Considerando as disposições administrativas relativas ao servidor
+    termo de posse, em caso de falecimento, será emitido novo documento.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+    assert "termo de posse" in blocos[0]
+
+
+def test_segmentacao_nao_cria_novo_bloco_com_termo_de_permissao_continuacao():
+    texto = """
+    O presente instrumento estabelece que o permissionário deverá observar
+    termo de Permissão é ato unilateral, discricionário e precário.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+    assert "termo de Permissão" in blocos[0]
+
+
+def test_segmentacao_preserva_termo_aditivo_numerado():
+    texto = """
+    3° Termo Aditivo ao Contrato n° 001/2024
+    Contratada: Empresa Exemplo Ltda.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+    assert blocos[0].startswith("3° Termo Aditivo")
+
+
+def test_segmentacao_preserva_outro_termo_aditivo_numerado():
+    texto = """
+    15° Termo Aditivo ao Contrato n° 083.11.2021
+    Contratada: Empresa Exemplo Ltda.
+    """
+
+    blocos = segmentar_publicacoes(texto)
+
+    assert len(blocos) == 1
+    assert blocos[0].startswith("15° Termo Aditivo")
+
+def test_fornecedor_pela_contratada_caso_3340():
+    texto = """
+    33° Termo Aditivo ao Contrato n° 084.12.2005
+    Contrato n° 084.12.2005
+    Contratante: O Município de Teresópolis através da Secretaria Municipal de Educação.
+    PELA CONTRATANTE: CARLA RABELLO FERREIRA.
+    PELA CONTRATADA: AMANDIO DO NASCIMENTO.
+    Renato Miranda de Almeida Junior
+    Subprocurador-Geral
+    Matrícula: 4.20303-9
+    OAB/RJ 143890
+    SECRETARIA MUNICIPAL DE EDUCAÇÃO
+    GERAL
+    SECRETARIA MUNICIPAL DE EDUCAÇÃO
+    """
+
+    assert extrair_fornecedor(texto) is None
+
+
+def test_fornecedor_pela_contratada_caso_3357():
+    texto = """
+    CONTRATO N° 029.001.2026
+    PELA CONTRATADA: JOÃO MARCOS CARREIRO DE CARVALHO.
+    """
+
+    assert extrair_fornecedor(texto) is None
+
+
+def test_fornecedor_pela_contratada_caso_3386():
+    texto = """
+    19° Termo Aditivo ao Contrato n° 017.03.2013
+    Contratante: O Município de Teresópolis através do Fundo Municipal de Assistência Social.
+    PELA CONTRATADA: DARCI RAMOS TAVARES, ROSILEI AMARAL RAMOS TAVARES.
+    JULHO 2026
+    """
+
+    assert extrair_fornecedor(texto) is None
+
+def test_identifica_beneficiarios_nao_como_termo():
+    texto = """
+    BENEFICIÁRIOS DO PROGRAMA OPERAÇÃO TRABALHO
+    Relação dos beneficiários selecionados.
+    Considerando os termos do programa.
+    """
+
+    assert identificar_tipo(texto) != "termo"
+
+
+def test_identifica_texto_administrativo_nao_como_termo():
+    texto = """
+    CLASSIFICAÇÃO DE INFORMAÇÕES
+    Nos termos da Lei de Acesso à Informação, a classificação será mantida.
+    """
+
+    assert identificar_tipo(texto) != "termo"
+
+
+def test_identifica_publicacao_com_tabela_nao_como_termo():
+    texto = """
+    BENEFICIÁRIOS DO PROGRAMA OPERAÇÃO TRABALHO
+    Relação dos beneficiários contemplados.
+    Referência ao Termo de Adesão constante do processo.
+    """
+
+    assert identificar_tipo(texto) != "termo"

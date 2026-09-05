@@ -27,7 +27,7 @@ from taxonomy.entity_taxonomy import (
 )
 
 from extractor import extrair_texto
-from parser import segmentar_publicacoes
+from parser import sanear_texto_pdf, segmentar_publicacoes
 from processor import extrair_metadados_bloco
 
 from infra.db.connection import postgres_connection
@@ -168,6 +168,7 @@ def run():
                 # =============================================
 
                 texto = extrair_texto(pdf)
+                texto = sanear_texto_pdf(texto)
 
                 # =============================================
                 # DATA CONTEXTUAL

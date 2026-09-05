@@ -293,6 +293,15 @@ def _eh_inicio_publicacao(linha, linha_anterior=None):
         return False
     
     for padrao in INICIOS_PUBLICACAO:
+        # "TERMO" genérico não deve reconhecer continuações
+        # de texto iniciadas em minúsculas.
+        #
+        # Os padrões específicos de "TERMO ADITIVO" e
+        # "TERMO DE APOSTILAMENTO" continuam sendo avaliados
+        # normalmente porque aparecem antes deste padrão.
+        if padrao == r'TERMO\b' and not linha_limpa.startswith("TERMO"):
+            continue
+
         if re.match(padrao, linha_upper):
             return True
 
@@ -445,6 +454,8 @@ def identificar_tipo(texto):
 
         # Demais documentos
         (r'^CONTRATO\b', "contrato"),
+        (r'^DECRETO\b', "decreto"),
+        (r'^RESOLU[ÇC][ÃA]O\b', "resolucao"),
         (r'^TERMO\b', "termo"),
         (r'^AVISO\b', "aviso"),
         (r'^EXTRATO\b', "extrato"),
@@ -536,7 +547,7 @@ def identificar_tipo(texto):
     if "PORTARIA" in texto_upper:
         return "portaria"
 
-    if "TERMO" in texto_upper:
+    if re.search(r'(?m)^\s*TERMO\b', inicio.upper()):
         return "termo"
 
     return "outro"

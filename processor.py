@@ -1,10 +1,12 @@
 from classifier import deve_enriquecer_contratual
+
 from normalizer import (
     normalize_contratante,
     normalize_contrato,
     normalize_fornecedor,
     normalize_processo,
 )
+
 from parser import (
     extrair_cnpj,
     extrair_contratante,
@@ -17,6 +19,22 @@ from parser import (
     extrair_vigencia,
     identificar_tipo,
 )
+
+
+def _termo_tem_estrutura_contratual(texto_bloco):
+    texto_upper = texto_bloco.upper()
+
+    pos_contratante = texto_upper.find("CONTRATANTE:")
+    pos_contratada = texto_upper.find("CONTRATADA:")
+    pos_objeto = texto_upper.find("OBJETO:")
+
+    return (
+        pos_contratante >= 0
+        and pos_contratada >= 0
+        and pos_objeto >= 0
+        and pos_contratante < pos_objeto
+        and pos_contratada < pos_objeto
+    )
 
 
 def extrair_metadados_bloco(texto_bloco):
@@ -41,7 +59,12 @@ def extrair_metadados_bloco(texto_bloco):
     metadados["processo_normalizado"] = normalize_processo(metadados["processo"])
     metadados["contrato_normalizado"] = normalize_contrato(metadados["contrato"])
 
-    if deve_enriquecer_contratual(tipo):
+    enriquecer_contratual = deve_enriquecer_contratual(tipo)
+
+    if tipo == "termo" and _termo_tem_estrutura_contratual(texto_bloco):
+        enriquecer_contratual = True
+
+    if enriquecer_contratual:
         contratante = extrair_contratante(texto_bloco)
         fornecedor = extrair_fornecedor(texto_bloco)
 
