@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 
 
 PADRAO_VALOR_MONETARIO = r'R\$\s*:?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?)'
@@ -158,6 +159,66 @@ def sanear_texto_pdf(texto):
     texto = _remover_cabecalhos_repetidos(texto)
 
     return texto
+
+
+def sanear_texto_paginado(texto_paginado):
+    """Aplica o saneamento legado sem perder a proveniência das linhas."""
+    linhas = list(texto_paginado.linhas)
+    incluir = [True] * len(linhas)
+    em_bloco_autenticacao = False
+
+    for indice, linha in enumerate(linhas):
+        if em_bloco_autenticacao:
+            if linha.texto.upper() == "DIÁRIO OFICIAL ELETRÔNICO":
+                em_bloco_autenticacao = False
+            else:
+                incluir[indice] = False
+                continue
+
+        if re.search(
+            r"Para\s+verificar\s+a\s+autenticidade",
+            linha.texto,
+            flags=re.IGNORECASE,
+        ):
+            incluir[indice] = False
+            em_bloco_autenticacao = True
+
+    ocorrencias_cabecalho = 0
+    indice = 0
+
+    while indice < len(linhas):
+        textos = [linha.texto for linha in linhas]
+
+        if _eh_cabecalho_diario(textos, indice):
+            ocorrencias_cabecalho += 1
+
+            if ocorrencias_cabecalho > 1:
+                for posicao in range(indice, indice + 6):
+                    incluir[posicao] = False
+
+            indice += 6
+            continue
+
+        indice += 1
+
+    return type(texto_paginado)(
+        tuple(
+            replace(
+                linha,
+                incluir_no_texto_saneado=incluir[indice],
+            )
+            for indice, linha in enumerate(linhas)
+        )
+    )
+
+
+def serializar_texto_paginado(texto_paginado):
+    """Serializa somente as linhas mantidas pelo saneamento."""
+    return "\n".join(
+        linha.texto
+        for linha in texto_paginado.linhas
+        if linha.incluir_no_texto_saneado
+    )
 
 def _limpar_campo_documental(valor):
     if not valor:
@@ -703,6 +764,44 @@ def segmentar_publicacoes(texto):
     blocos = [b.strip() for b in blocos if b.strip()]
 
     return blocos
+
+
+def segmentar_publicacoes_paginado(texto_paginado):
+    """Segmenta linhas saneadas usando os mesmos critérios do parser legado."""
+    blocos = []
+    bloco_atual = []
+    linhas = [
+        linha
+        for linha in texto_paginado.linhas
+        if linha.incluir_no_texto_saneado
+    ]
+
+    for indice, linha in enumerate(linhas):
+        linha_anterior = linhas[indice - 1].texto if indice > 0 else None
+        inicio = _eh_inicio_publicacao(
+            linha.texto,
+            linha_anterior,
+        )
+        recente = _inicio_recente_de_publicacao(
+            [item.texto for item in bloco_atual]
+        )
+
+        if inicio and not recente:
+            if bloco_atual:
+                blocos.append(tuple(bloco_atual))
+
+            bloco_atual = [linha]
+        else:
+            bloco_atual.append(linha)
+
+    if bloco_atual:
+        blocos.append(tuple(bloco_atual))
+
+    return blocos
+
+
+def serializar_bloco_paginado(bloco):
+    return "\n".join(linha.texto for linha in bloco).strip()
 
 
 def extrair_contrato(texto):

@@ -26,8 +26,13 @@ from taxonomy.entity_taxonomy import (
     ORGAO_CONTRATANTE
 )
 
-from extractor import extrair_texto
-from parser import sanear_texto_pdf, segmentar_publicacoes
+from extractor import extrair_texto_paginado
+from parser import (
+    sanear_texto_paginado,
+    segmentar_publicacoes_paginado,
+    serializar_bloco_paginado,
+    serializar_texto_paginado,
+)
 from processor import extrair_metadados_bloco
 
 from infra.db.connection import postgres_connection
@@ -82,7 +87,10 @@ from canonical_event_builder import (
 from consolidador_processos import consolidar_postgres
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
-from pot_extractor import extrair_publicacoes_pot_pdf
+from pot_extractor import (
+    extrair_publicacoes_pot_estruturadas,
+)
+from pot_segmentation import ajustar_blocos_pot_estruturais
 
 from logging_setup import setup_logging, novo_run_id, log_sucesso, log_erro
 
@@ -179,8 +187,11 @@ def run():
                 # =============================================
 
                 etapa_atual = "extrair_texto"
-                texto = extrair_texto(pdf)
-                texto = sanear_texto_pdf(texto)
+                texto_paginado = extrair_texto_paginado(pdf)
+                texto_paginado = sanear_texto_paginado(
+                    texto_paginado
+                )
+                texto = serializar_texto_paginado(texto_paginado)
 
                 # =============================================
                 # DATA CONTEXTUAL
@@ -196,7 +207,30 @@ def run():
                 # =============================================
 
                 etapa_atual = "segmentar_publicacoes"
-                blocos = segmentar_publicacoes(texto)
+                blocos_paginados = segmentar_publicacoes_paginado(
+                    texto_paginado
+                )
+                publicacoes_pot = []
+
+                with pdfplumber.open(pdf) as pdf_aberto:
+                    publicacoes_pot_estruturadas = (
+                        extrair_publicacoes_pot_estruturadas(
+                            pdf_aberto
+                        )
+                    )
+                    blocos_paginados = ajustar_blocos_pot_estruturais(
+                        blocos_paginados,
+                        publicacoes_pot_estruturadas,
+                    )
+                    publicacoes_pot = [
+                        publicacao["registros"]
+                        for publicacao in publicacoes_pot_estruturadas
+                    ]
+
+                blocos = [
+                    serializar_bloco_paginado(bloco)
+                    for bloco in blocos_paginados
+                ]
 
                 print(f"  Blocos: {len(blocos)}")
 
@@ -208,7 +242,6 @@ def run():
                 ec_aplicacoes = 0
                 ec_criterio = None
                 pot_indice = 0
-                publicacoes_pot = []
 
                 for i, bloco in enumerate(
                     blocos,
@@ -223,15 +256,6 @@ def run():
                     pot_publicacao = None
 
                     if metadados["tipo"] == "pot":
-
-                        if not publicacoes_pot:
-                            with pdfplumber.open(pdf) as pdf_aberto:
-                                publicacoes_pot = (
-                                    extrair_publicacoes_pot_pdf(
-                                        pdf_aberto
-                                    )
-                                )
-
                         pot_publicacao = publicacoes_pot[pot_indice]
                         pot_indice += 1
 

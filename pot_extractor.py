@@ -553,6 +553,7 @@ def _extrair_registros_pot_tabela(
 
     return registros
 
+
 def _agrupar_publicacoes_pot(pdf):
     """
     Agrupa tabelas físicas POT em publicações POT lógicas.
@@ -644,6 +645,7 @@ def _agrupar_publicacoes_pot(pdf):
             tabela_atual = {
                 "pagina": pagina_numero,
                 "tabela": tabela_numero,
+                "bbox": tabela.bbox,
                 "layout": layout,
                 "registros": registros,
             }
@@ -923,6 +925,25 @@ def extrair_publicacoes_pot_pdf(pdf):
     return _reconstruir_publicacoes_pot(
         grupos_fisicos
     )
+
+
+def extrair_publicacoes_pot_estruturadas(pdf):
+    """Expõe grupos POT e seus limites físicos sem alterar a API legada."""
+    grupos_fisicos = _agrupar_publicacoes_pot(pdf)
+    publicacoes = _reconstruir_publicacoes_pot(
+        grupos_fisicos
+    )
+
+    return [
+        {
+            "tabelas": grupo,
+            "registros": registros,
+        }
+        for grupo, registros in zip(
+            grupos_fisicos,
+            publicacoes,
+        )
+    ]
 
 def extrair_registros_pot_pdf(pdf):
     """
