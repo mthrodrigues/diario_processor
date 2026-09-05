@@ -52,6 +52,9 @@ flowchart TD
 | `normalizer.py` | Implementado e usado | Normaliza processos, contratos, fornecedores e contratantes |
 | `normalizers/entity_normalizer.py` | Implementado e usado | Canonicaliza nomes de entidades para o grafo |
 | `infra/db/*` | Implementado e usado | Conexao, migracoes e repositorios Postgres |
+| `pot_extractor.py` | Implementado e usado | Extrai beneficiarios do Programa Operacao Trabalho (POT) de blocos classificados como `pot` |
+| `infra/db/repositories/pot_repository.py` | Implementado e usado | Persiste os beneficiarios do POT na tabela `pot_beneficiarios` |
+| `logging_setup.py` | Implementado e usado | Configura o logger persistente central (`diario_processor`), `run_id` e helpers de log de sucesso/erro |
 | `consolidador_processos.py` / `consolidador_contratos.py` | Implementado e usado | Consolidam catalogos finais apos a ingestao |
 | `database.py` | Implementado mas legado | Camada SQLite de compatibilidade local e testes |
 | `analytics.py` / `analytics_cli.py` | Implementado mas auxiliar | Consultas analiticas sobre a base SQLite legado |
@@ -75,7 +78,9 @@ flowchart TD
 | `normalizers/` | Normalizacao canonica de entidades nominativas | Implementado e usado |
 | `infra/db/connection.py` | Pool de conexao Postgres com retry | Implementado e usado |
 | `infra/db/migrations/` | Migra schema e registra versoes aplicadas | Implementado e usado |
-| `infra/db/repositories/` | Persistencia de publicacoes, eventos, entidades, relacoes, timelines e outbox | Implementado e usado |
+| `infra/db/repositories/` | Persistencia de publicacoes, eventos, entidades, relacoes, timelines, outbox e beneficiarios do POT | Implementado e usado |
+| `pot_extractor.py` | Extrai beneficiarios do POT a partir da geometria do PDF (colunas) | Implementado e usado |
+| `logging_setup.py` | Configuracao central de logging persistente (arquivo, nivel, `run_id`, mensagens de sucesso/erro) | Implementado e usado |
 | `consolidacao/base.py` | Executor comum para consolidadores | Implementado e usado |
 | `consolidador_processos.py` | Consolida catalogo de processos | Implementado e usado |
 | `consolidador_contratos.py` | Consolida catalogo de contratos | Implementado e usado |
@@ -94,30 +99,40 @@ flowchart TD
 1. `main.py` chama `listar_pdfs()` e carrega todos os PDFs sob `BASE_DIARIO_PATH`.
 2. Para cada PDF, `extrair_diario_id()` deriva o identificador do arquivo.
 3. `extrair_texto()` converte o PDF em texto bruto.
-4. `extrair_data_publicacao()` tenta recuperar a data oficial do cabeçalho.
-5. `segmentar_publicacoes()` divide o diario em blocos independentes.
-6. `extrair_metadados_bloco()` extrai e normaliza campos por bloco.
-7. `extrair_eventos_bloco()` converte cada bloco em zero ou mais eventos institucionais.
-8. `EventoRepository.salvar_evento()` persiste o evento.
-9. `EntityRepository.obter_ou_criar()` resolve entidades canônicas.
-10. `EventoRepository.relacionar_entidade()` vincula eventos a entidades.
-11. `EntityRelationshipRepository.criar_relacao()` cria relacoes derivadas entre entidades.
-12. `TimelineRepository.abrir_vinculo()` e `fechar_vinculo()` atualizam a historia funcional.
-13. `PublicacaoRepository.salvar_publicacao()` persiste o bloco cru e os metadados.
-14. Ao fim do lote, `consolidar_postgres()` e `consolidar_contratos_postgres()` constroem os catalogos consolidados.
+4. `sanear_texto_pdf()` normaliza o texto bruto antes da segmentacao.
+5. `extrair_data_publicacao()` tenta recuperar a data oficial do cabeçalho.
+6. `segmentar_publicacoes()` divide o diario em blocos independentes.
+7. `extrair_metadados_bloco()` extrai e normaliza campos por bloco. Quando o bloco e classificado como `pot`, `pot_extractor.extrair_publicacoes_pot_pdf()` extrai os beneficiarios do Programa Operacao Trabalho a partir da geometria do PDF.
+8. `aplicar_regra_001_heranca_contratante()` (Enriquecimento Contextual, ADR-0001) herda o contratante institucional do bloco anterior quando aplicavel. Falhas nesta etapa sao registradas no log persistente e nao interrompem o processamento do bloco.
+9. `extrair_eventos_bloco()` converte cada bloco em zero ou mais eventos institucionais.
+10. `EventoRepository.salvar_evento()` persiste o evento.
+11. `build_institutional_event()` monta o payload canonico e `InstitutionalEventOutboxRepository.publish()` publica na outbox quando aplicavel; falhas nesta etapa sao registradas no log persistente sem interromper o Diario.
+12. `EntityRepository.obter_ou_criar()` resolve entidades canônicas.
+13. `EventoRepository.relacionar_entidade()` vincula eventos a entidades.
+14. `EntityRelationshipRepository.criar_relacao()` cria relacoes derivadas entre entidades.
+15. `TimelineRepository.abrir_vinculo()` e `fechar_vinculo()` atualizam a historia funcional.
+16. `PublicacaoRepository.salvar_publicacao()` persiste o bloco cru e os metadados; quando o bloco e do tipo `pot`, `PotRepository.substituir_registros()` persiste os beneficiarios extraidos.
+17. Ao final de cada Diario, `conn.commit()` confirma a transacao e uma linha de sucesso e registrada no log persistente (ver secao 17).
+18. Ao fim do lote, `consolidar_postgres()` e `consolidar_contratos_postgres()` constroem os catalogos consolidados.
+
+Erros no processamento de um Diario acionam `rollback()`, incrementam o contador de erros e sao registrados no log persistente com contexto (diario, arquivo, bloco, etapa) e traceback, sem interromper o processamento dos demais PDFs.
 
 ### Fluxo textual
 
 ```text
 PDF
  -> texto bruto
+ -> texto saneado
  -> blocos/publicacoes
- -> metadados de bloco
+ -> metadados de bloco (+ beneficiarios POT quando aplicavel)
+ -> enriquecimento contextual (quando aplicavel)
  -> eventos
+ -> evento canonico / outbox (quando aplicavel)
  -> entidades
  -> relacoes
  -> timelines
- -> publicacoes persistidas
+ -> publicacoes persistidas (+ pot_beneficiarios quando aplicavel)
+ -> commit + log de sucesso/erro
  -> processos consolidados
  -> contratos consolidados
 ```
@@ -143,6 +158,7 @@ PDF
 | `timelines_entidades` | Historia temporal de vinculos funcionais | `TimelineRepository` | FK conceitual para `entidades` e eventos de inicio/fim | Ativa |
 | `processos` | Catalogo consolidado por `processo_normalizado` | `consolidador_processos.py` | Deriva de `publicacoes` | Ativa |
 | `contratos` | Catalogo consolidado por `contrato_normalizado` | `consolidador_contratos.py` | Deriva de `publicacoes` | Ativa |
+| `pot_beneficiarios` | Beneficiarios do Programa Operacao Trabalho extraidos de blocos do tipo `pot` | `PotRepository` | FK para `publicacoes(id)` | Ativa |
 | `schema_migrations` | Controle de versao das migracoes | `infra/db/migrations/runner.py` | Mantem trilha de migracao | Ativa |
 
 ### Campos centrais da `publicacoes`
@@ -177,6 +193,7 @@ PDF
 - `timelines_entidades`: `entidade_id`, `orgao_entidade_id`, `tipo_vinculo`, `data_inicio`, `data_fim`, `ativo`, `evento_inicio_id`, `evento_fim_id`
 - `processos`: `processo`, `processo_normalizado`, `data_primeira_publicacao`, `data_ultima_publicacao`, `quantidade_publicacoes`
 - `contratos`: `contrato`, `contrato_normalizado`, `data_primeira_publicacao`, `data_ultima_publicacao`, `quantidade_publicacoes`
+- `pot_beneficiarios`: `publicacao_id`, `numero`, `beneficiario`, `unidade`, `horario_atuacao`, `area_aprendizado`, `data_inclusao`, `data_desligamento`, `substituicao`, `texto_bruto`, `criado_em`
 
 ### Tabelas presentes apenas no dump `diario_schema.sql`
 
@@ -407,6 +424,19 @@ Limite atual importante:
 - `build_institutional_event()` retorna `dict`.
 - Se a outbox externa estiver habilitada, essa interface precisa estar consistente no runtime externo ou a publicacao falhara.
 
+Falhas em `publish()` sao capturadas em `main.py`, nao interrompem o Diario e, desde a introducao do logging persistente (ADR-011), sao registradas no log com etapa `publicar_evento_canonico`, contexto e traceback.
+
+### POT (Beneficiarios do Programa Operacao Trabalho)
+
+`pot_extractor.py` extrai beneficiarios do POT a partir de blocos classificados como `tipo == "pot"`, usando a geometria (posicao horizontal das colunas) do PDF via `pdfplumber` para separar `beneficiario`, `unidade`, `area_aprendizado`, `data_inclusao`, `substituicao` e `horario_atuacao`.
+
+Estado atual:
+
+- `main.py` invoca `extrair_publicacoes_pot_pdf()` uma unica vez por PDF, reabrindo o arquivo com `pdfplumber`, e associa cada publicacao POT extraida ao bloco correspondente por ordem de ocorrencia.
+- `PotRepository.substituir_registros()` persiste os beneficiarios na tabela `pot_beneficiarios`, vinculados por `publicacao_id`.
+- Ao final do processamento de cada PDF, `main.py` valida a cardinalidade entre blocos POT processados e publicacoes POT extraidas, levantando `RuntimeError` em caso de inconsistencia.
+- Cobertura de testes: `tests/test_pot_extractor.py`, `tests/test_pot_integration.py` e `tests/test_pot_postgres_integration.py`.
+
 ## 10. Camada de Relacionamentos
 
 ### O que existe
@@ -519,6 +549,8 @@ flowchart LR
 - `tests/test_events.py` cobre geracao de eventos, subeventos e associacao de metadados.
 - `tests/test_processor.py` cobre enriquecimento contratual seletivo.
 - `tests/test_normalizer.py` valida regras de normalizacao.
+- `tests/test_pot_extractor.py` e `tests/test_pot_integration.py` cobrem a extracao e a associacao dos beneficiarios do POT.
+- `tests/test_logging_setup.py` cobre a configuracao do logger persistente, o registro de sucesso, o registro de erro com contexto e traceback, o caso de erro antes de `diario_id` estar disponivel, e os erros nao fatais (enriquecimento contextual e publicacao de evento canonico).
 
 ### Regressoes
 
@@ -528,6 +560,7 @@ flowchart LR
 ### Auditorias SQL
 
 - `tests/test_postgres_infra.py` valida SQL gerado por migracoes, repositorios e consolidadores.
+- `tests/test_pot_postgres_integration.py` valida a persistencia dos beneficiarios do POT contra SQL gerado para Postgres.
 - A estrategia usa conexoes falsas para inspecionar comandos sem depender de banco real.
 
 ### Validacoes arquiteturais
@@ -550,6 +583,8 @@ Evolucoes efetivamente incorporadas ao projeto:
 - Estruturacao da camada de relacoes entre entidades.
 - Introducao de timelines para vinculos funcionais.
 - Separacao entre base legada SQLite e base atual em PostgreSQL.
+- Implementacao da extracao e persistencia dos beneficiarios do Programa Operacao Trabalho (POT).
+- Introducao de logging persistente e observabilidade operacional do processamento (ADR-011).
 
 ## 15. Decisoes Arquiteturais Consolidadas
 
@@ -562,6 +597,7 @@ Evolucoes efetivamente incorporadas ao projeto:
 - Relacoes representam conhecimento derivado.
 - A persistencia oficial atual e PostgreSQL.
 - SQLite ficou como compatibilidade local, testes e utilitarios auxiliares.
+- Cada execucao do pipeline produz uma trilha de logging persistente: uma linha por Diario processado com sucesso e um registro com contexto e traceback completo por erro (ADR-011).
 
 ## 16. Inventario e Validacao
 
@@ -584,6 +620,8 @@ Evolucoes efetivamente incorporadas ao projeto:
 - `consolidador_processos.py`
 - `consolidador_contratos.py`
 - `consolidacao/base.py`
+- `pot_extractor.py`
+- `logging_setup.py`
 - `infra/db/connection.py`
 - `infra/db/migrations/runner.py`
 - `infra/db/migrations/*.sql`
@@ -609,6 +647,8 @@ Evolucoes efetivamente incorporadas ao projeto:
 - Normalizacao
 - Persistencia PostgreSQL
 - Consolidacao de processos e contratos
+- Beneficiarios do Programa Operacao Trabalho (POT)
+- Logging persistente e observabilidade operacional
 - Camada relacional e temporal
 - Testes e utilitarios de manutencao
 
@@ -629,4 +669,36 @@ Evolucoes efetivamente incorporadas ao projeto:
 - `InstitutionalEventOutboxRepository.publish()` espera `to_dict()`, enquanto `build_institutional_event()` retorna `dict`.
 - `taxonomy/event_taxonomy.py` define mais tipos de evento do que `events.py` emite hoje.
 - O dump `diario_schema.sql` contem tabelas sem referencia no codigo atual, o que indica legado de banco nao refletido no fluxo Python principal.
+- `contextual_enrichment.py` mantem uma chamada a `logging.getLogger('diario_processor.enrichment')` para auditoria da aplicacao da Regra 001 (ADR-0001), mas esse logger nao possui handler configurado em nenhum ponto do codigo. Na pratica, essa chamada nao produz saida persistida nem em console. E um ponto distinto do logger central `diario_processor` introduzido pelo ADR-011, que cobre apenas as falhas (excecoes) da EC, e nao o registro de auditoria das aplicacoes bem-sucedidas da regra.
+
+## 17. Logging Persistente e Observabilidade Operacional
+
+Ver ADR-011 (`docs/adr/ADR-011-logging-persistente-do-processamento.md`) para a decisao arquitetural completa.
+
+### Modulo
+
+- `logging_setup.py` concentra a configuracao do logging persistente, separado de `config.py` (que trata apenas de configuracao de aplicacao).
+- `setup_logging()` cria/reaproveita um logger nomeado `diario_processor`, com um `RotatingFileHandler` (`logs/diario_processor.log`, 5MB por arquivo, 5 backups) e nivel configuravel via parametro ou variavel de ambiente `LOG_LEVEL`.
+- `novo_run_id()` gera um identificador de execucao simples e legivel (`YYYYMMDD-HHMMSS`), criado uma vez no inicio de `main.run()` e reutilizado em todas as mensagens daquela execucao.
+- `log_sucesso()` e `log_erro()` sao os pontos de integracao usados por `main.py` para registrar, respectivamente, uma linha de sucesso por Diario e um registro de erro com contexto e traceback.
+
+### Formato
+
+```
+<timestamp> | <NIVEL> | run=<run_id> | diario=<diario_id> | arquivo=<arquivo> | bloco=<bloco> | etapa=<etapa> | mensagem=<mensagem>
+```
+
+Campos indisponiveis no momento do registro sao representados como `?` (nunca inventados). Em erros, o traceback e anexado pelo proprio `logging` (via `exc_info=True`), na forma padrao da biblioteca.
+
+### Pontos instrumentados em `main.py`
+
+- Sucesso: uma unica linha por Diario, apos o `commit()`.
+- Erro por Diario: o `except` principal do loop de PDFs registra `diario_id`, `arquivo`, `bloco` (quando disponivel) e a etapa em que a falha ocorreu (`extrair_diario_id`, `extrair_texto`, `extrair_data_publicacao`, `segmentar_publicacoes`, `extrair_metadados_bloco`, `enriquecimento_contextual`, `extrair_eventos`, `salvar_evento`, `publicar_evento_canonico`, `salvar_publicacao`, `salvar_pot`, `commit`), preservando `rollback`, incremento do contador de erros e continuacao para o proximo Diario.
+- `diario_id` e o numero do bloco sao inicializados como `None` no inicio de cada iteracao do loop de PDFs, para que uma falha ocorrida antes de `extrair_diario_id()` nao gere uma segunda excecao (mascarando a original) ao montar a mensagem de erro.
+- Erros nao fatais no enriquecimento contextual e na publicacao do evento canonico passam a ser registrados no log persistente (contexto + traceback), sem alterar a politica funcional: a EC continua nao interrompendo o Diario, e a publicacao canonica continua sendo best-effort.
+- Erros de consolidacao de processos e de contratos sao registrados antes de `rollback()` e `raise`, pois representam falha da execucao global, e nao apenas de um Diario.
+
+### Console
+
+O console mantem a saida operacional enxuta previa (progresso por Diario, resumo da execucao); o arquivo de log e complementar e nao replica SQL, parametros, eventos completos, metadados completos ou texto de blocos.
 

@@ -28,11 +28,12 @@ A EC não altera texto_bloco nem segmentação. Toda herança é registrada em l
 ## Future work
 - Expandir EC para outras regras de herança contextual (e.g., fornecedor, processo quando faltante) com critérios configuráveis e tabela de auditoria persistente.
 - Avaliar alteração da segmentação a médio prazo, com plano de migração e reprocessamento.
+- Conectar o logger de auditoria `diario_processor.enrichment` a um handler persistente (ou migrar a auditoria de aplicações bem-sucedidas para o logger central `diario_processor` introduzido pela ADR-011), hoje sem efeito observável.
 
 ## Implementação
 - Módulo: contextual_enrichment.py
 - Integração: invocado em main.py imediatamente após extrair_metadados_bloco e antes de salvar_publicacao.
-- Logging: saída JSON (linha por evento) preparada para futura ingestão em tabela de auditoria. A auditoria é emitida via logger 'diario_processor.enrichment' em formato JSON (linha por evento).
+- Logging: a auditoria da aplicação da regra (JSON, linha por evento) é emitida via `logging.getLogger('diario_processor.enrichment')`. Este logger é isolado e, até o momento, não possui handler configurado em nenhum ponto do código — ou seja, essa chamada não produz saída persistida. Desde a ADR-011 (`docs/adr/ADR-011-logging-persistente-do-processamento.md`), falhas (exceções) na aplicação da EC são registradas no logger central `diario_processor`, com contexto (`diario_id`, `arquivo`, `bloco`, `etapa=enriquecimento_contextual`) e traceback, sem interromper o processamento do Diário. O registro de auditoria das aplicações bem-sucedidas da regra continua sendo um ponto em aberto (ver Future work).
 
 ## Conclusão da Regra 001
 - A Regra 001 foi definida e implementada utilizando apenas os critérios determinísticos A, B e C:

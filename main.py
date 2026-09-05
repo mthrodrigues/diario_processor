@@ -84,6 +84,8 @@ from consolidador_contratos import consolidar_postgres as consolidar_contratos_p
 
 from pot_extractor import extrair_publicacoes_pot_pdf
 
+from logging_setup import setup_logging, novo_run_id, log_sucesso, log_erro
+
 
 def _timeline_vinculo_valido(tipo_evento, entidade_pessoa_id, entidade_orgao_id):
     if tipo_evento not in (NOMEACAO, EXONERACAO):
@@ -98,6 +100,9 @@ def _timeline_vinculo_valido(tipo_evento, entidade_pessoa_id, entidade_orgao_id)
 def run():
 
     inicio_total = time.time()
+
+    logger = setup_logging()
+    run_id = novo_run_id()
 
     print("--------------------------------------------------")
     print("Iniciando Diário Processor")
@@ -141,6 +146,11 @@ def run():
 
         for idx, pdf in enumerate(pdfs, start=1):
 
+            # contexto seguro para o except, antes de qualquer etapa que possa falhar
+            diario_id = None
+            i = None
+            etapa_atual = "incrementalidade"
+
             try:
 
                 # =============================================
@@ -156,6 +166,7 @@ def run():
 
                     continue
 
+                etapa_atual = "extrair_diario_id"
                 diario_id = extrair_diario_id(pdf)
 
                 inicio_pdf = time.time()
@@ -167,6 +178,7 @@ def run():
                 # TEXTO
                 # =============================================
 
+                etapa_atual = "extrair_texto"
                 texto = extrair_texto(pdf)
                 texto = sanear_texto_pdf(texto)
 
@@ -174,6 +186,7 @@ def run():
                 # DATA CONTEXTUAL
                 # =============================================
 
+                etapa_atual = "extrair_data_publicacao"
                 data_publicacao = (
                     extrair_data_publicacao(texto)
                 )
@@ -182,6 +195,7 @@ def run():
                 # SEGMENTAÇÃO
                 # =============================================
 
+                etapa_atual = "segmentar_publicacoes"
                 blocos = segmentar_publicacoes(texto)
 
                 print(f"  Blocos: {len(blocos)}")
@@ -201,6 +215,7 @@ def run():
                     start=1
                 ):
 
+                    etapa_atual = "extrair_metadados_bloco"
                     metadados = extrair_metadados_bloco(
                         bloco
                     )
@@ -224,6 +239,7 @@ def run():
                     # Enriquecimento Contextual (Regra 001)
                     # ================================
                     # Se aplicável, herda contratante institucional do bloco anterior
+                    etapa_atual = "enriquecimento_contextual"
                     try:
                         from contextual_enrichment import aplicar_regra_001_heranca_contratante
 
@@ -251,9 +267,17 @@ def run():
                                 f"bloco {prev_num} → {curr_num} | "
                                 f"critério {ec_criterio}"
                             )
-                    except Exception:
-                        # silenciar falhas do enriquecimento para não interromper o pipeline
-                        pass
+                    except Exception as e:
+                        # não interrompe o pipeline, mas deixa de ser totalmente silencioso
+                        log_erro(
+                            logger,
+                            run_id,
+                            str(e),
+                            diario_id=diario_id,
+                            arquivo=pdf.name,
+                            bloco=i,
+                            etapa="enriquecimento_contextual",
+                        )
 
                     # preserve bloco atual como "previous" para próxima iteração
                     previous_bloco = bloco
@@ -264,6 +288,7 @@ def run():
                     # EVENTOS
                     # =========================================
 
+                    etapa_atual = "extrair_eventos"
                     eventos = extrair_eventos_bloco(
                         metadados,
                         bloco,
@@ -285,6 +310,7 @@ def run():
                         # SALVA EVENTO
                         # =====================================
 
+                        etapa_atual = "salvar_evento"
                         evento_id = (
                             evento_repository.salvar_evento(
                                 evento,
@@ -303,6 +329,7 @@ def run():
                             )
                         )
 
+                        etapa_atual = "publicar_evento_canonico"
                         try:
 
                             if canonical_event:
@@ -316,6 +343,15 @@ def run():
                             print(
                                 f"  [ERRO] Publicar evento canônico | "
                                 f"diário {diario_id} bloco {i}: {e}"
+                            )
+                            log_erro(
+                                logger,
+                                run_id,
+                                str(e),
+                                diario_id=diario_id,
+                                arquivo=pdf.name,
+                                bloco=i,
+                                etapa="publicar_evento_canonico",
                             )
 
                         # =====================================
@@ -470,6 +506,7 @@ def run():
                     # SALVA PUBLICAÇÃO
                     # =========================================
 
+                    etapa_atual = "salvar_publicacao"
                     publicacao_id = repository.salvar_publicacao(
 
                         diario_id,
@@ -512,6 +549,7 @@ def run():
                     )
 
                     if metadados["tipo"] == "pot":
+                        etapa_atual = "salvar_pot"
                         pot_repository.substituir_registros(
                             publicacao_id,
                             pot_publicacao,
@@ -527,7 +565,10 @@ def run():
 
                 novos += 1
 
+                etapa_atual = "commit"
                 conn.commit()
+
+                log_sucesso(logger, run_id, diario_id, pdf.name)
 
                 duracao = time.time() - inicio_pdf
                 ec_info = (
@@ -548,10 +589,20 @@ def run():
                 import traceback
 
                 print(
-                    f"  [ERRO] diário {diario_id} | bloco {i if 'i' in locals() else '?'}: {e}"
+                    f"  [ERRO] diário {diario_id} | bloco {i if i is not None else '?'}: {e}"
                 )
 
                 traceback.print_exc()
+
+                log_erro(
+                    logger,
+                    run_id,
+                    str(e),
+                    diario_id=diario_id,
+                    arquivo=pdf.name,
+                    bloco=i,
+                    etapa=etapa_atual,
+                )
 
         # =========================================
         # CAMADA DE CONSOLIDAÇÃO
@@ -572,8 +623,14 @@ def run():
             )
             conn.commit()
             print("Consolidação de processos concluída.")
-        except Exception:
+        except Exception as e:
             conn.rollback()
+            log_erro(
+                logger,
+                run_id,
+                str(e),
+                etapa="consolidacao_processos",
+            )
             raise
 
         try:
@@ -583,8 +640,14 @@ def run():
             )
             conn.commit()
             print("Consolidação de contratos concluída.")
-        except Exception:
+        except Exception as e:
             conn.rollback()
+            log_erro(
+                logger,
+                run_id,
+                str(e),
+                etapa="consolidacao_contratos",
+            )
             raise
 
         duracao_total = time.time() - inicio_total

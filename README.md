@@ -16,6 +16,8 @@ O pipeline realiza:
 - geração de eventos institucionais;
 - normalização de entidades;
 - persistência em banco de dados;
+- extração de beneficiários do Programa Operação Trabalho (POT);
+- logging persistente e observabilidade operacional da execução;
 - auditorias de qualidade;
 - testes automatizados de regressão.
 

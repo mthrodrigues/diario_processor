@@ -6,6 +6,15 @@ O projeto segue o princípio de versionamento semântico.
 
 ---
 
+## [Não lançado]
+
+### Adicionado
+
+- Logging persistente do processamento (`logging_setup.py`): logger central `diario_processor`, `run_id` por execução, registro de sucesso em linha única por Diário e registro de erro com contexto (diário, arquivo, bloco, etapa) e traceback completo. Ver ADR-011.
+- Registro persistente das falhas, antes silenciosas, do enriquecimento contextual e da publicação de evento canônico, sem alterar o comportamento funcional de ambas.
+
+---
+
 ## [1.0.0]
 
 ### Adicionado
