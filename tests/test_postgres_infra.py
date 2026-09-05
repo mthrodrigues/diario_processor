@@ -138,6 +138,26 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn('"diario".contratos', sql_executado)
         self.assertIn("idx_diario_contratos_contrato_normalizado", sql_executado)
 
+    def test_run_migrations_adiciona_pdf_hash_e_constraint_de_unicidade(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.append([])
+
+        run_migrations(conn, schema="diario")
+
+        sql_executado = "\n".join(sql for sql, _params in conn.executed)
+
+        self.assertIn(
+            'ALTER TABLE "diario".publicacoes\nADD COLUMN IF NOT EXISTS pdf_hash TEXT;',
+            sql_executado,
+        )
+        self.assertIn(
+            'ALTER TABLE "diario".publicacoes\nADD COLUMN IF NOT EXISTS parser_version TEXT;',
+            sql_executado,
+        )
+        self.assertIn("ADD CONSTRAINT uq_publicacoes_pdf_bloco", sql_executado)
+        self.assertIn("UNIQUE (pdf_hash, numero_bloco)", sql_executado)
+        self.assertIn("possui definicao incompativel", sql_executado)
+
     def test_consolidador_contratos_usa_sql_e_parametros_postgres(self):
         conn = FakeConnection()
         conn.fetchall_queue.append([
@@ -186,9 +206,14 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertEqual(params[2], "diario_1.pdf")
         self.assertEqual(params[7], "001/2026")
         self.assertEqual(params[13], "[100.0]")
-        self.assertEqual(params[-2], "1/2026")
-        self.assertEqual(params[-1], "2026-07-30")
+        self.assertEqual(params[-4], "1/2026")
+        self.assertEqual(params[-3], "2026-07-30")
+        self.assertIsNone(params[-2])
+        self.assertIsNone(params[-1])
         self.assertIn("data_publicacao", sql)
+        self.assertIn("pdf_hash", sql)
+        self.assertIn("ON CONFLICT (pdf_hash, numero_bloco)", sql)
+        self.assertIn("RETURNING id", sql)
         self.assertEqual(publicacao_id, 123)
 
     def test_repository_salvar_publicacao_recalcula_contratante_normalizado(self):

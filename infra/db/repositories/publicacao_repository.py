@@ -42,6 +42,8 @@ class PublicacaoRepository:
         processo_normalizado=None,
         data_publicacao=None,
         contrato_normalizado=None,
+        pdf_hash=None,
+        parser_version=None,
     ):
         contratante_normalizado_canonico = normalize_contratante(contratante)
         if contratante_normalizado != contratante_normalizado_canonico:
@@ -69,11 +71,34 @@ class PublicacaoRepository:
                     objeto,
                     data_processamento,
                     processo_normalizado,
-                    data_publicacao
+                    data_publicacao,
+                    pdf_hash,
+                    parser_version
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s
                 )
+                ON CONFLICT (pdf_hash, numero_bloco) DO UPDATE SET
+                    diario_id = COALESCE(EXCLUDED.diario_id, {self.table}.diario_id),
+                    arquivo_path = COALESCE(EXCLUDED.arquivo_path, {self.table}.arquivo_path),
+                    texto_bloco = COALESCE(EXCLUDED.texto_bloco, {self.table}.texto_bloco),
+                    tipo = COALESCE(EXCLUDED.tipo, {self.table}.tipo),
+                    processo = COALESCE(EXCLUDED.processo, {self.table}.processo),
+                    contrato = COALESCE(EXCLUDED.contrato, {self.table}.contrato),
+                    contrato_normalizado = COALESCE(EXCLUDED.contrato_normalizado, {self.table}.contrato_normalizado),
+                    contratante = COALESCE(EXCLUDED.contratante, {self.table}.contratante),
+                    fornecedor = COALESCE(EXCLUDED.fornecedor, {self.table}.fornecedor),
+                    fornecedor_normalizado = COALESCE(EXCLUDED.fornecedor_normalizado, {self.table}.fornecedor_normalizado),
+                    contratante_normalizado = COALESCE(EXCLUDED.contratante_normalizado, {self.table}.contratante_normalizado),
+                    cnpj = COALESCE(EXCLUDED.cnpj, {self.table}.cnpj),
+                    valores = COALESCE(EXCLUDED.valores, {self.table}.valores),
+                    valor_principal = COALESCE(EXCLUDED.valor_principal, {self.table}.valor_principal),
+                    vigencia = COALESCE(EXCLUDED.vigencia, {self.table}.vigencia),
+                    objeto = COALESCE(EXCLUDED.objeto, {self.table}.objeto),
+                    data_processamento = EXCLUDED.data_processamento,
+                    processo_normalizado = COALESCE(EXCLUDED.processo_normalizado, {self.table}.processo_normalizado),
+                    data_publicacao = COALESCE(EXCLUDED.data_publicacao, {self.table}.data_publicacao),
+                    parser_version = COALESCE(EXCLUDED.parser_version, {self.table}.parser_version)
                 """
             params = (
                 diario_id,
@@ -96,6 +121,8 @@ class PublicacaoRepository:
                 datetime.now(),
                 processo_normalizado,
                 data_publicacao,
+                pdf_hash,
+                parser_version,
             )
             cursor.execute(
                 sql + " RETURNING id",

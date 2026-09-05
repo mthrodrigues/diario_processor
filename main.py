@@ -9,6 +9,7 @@ except Exception:
 
 from scanner import (
     listar_pdfs,
+    calcular_pdf_hash,
     extrair_diario_id,
     extrair_data_publicacao
 )
@@ -176,6 +177,9 @@ def run():
 
                 etapa_atual = "extrair_diario_id"
                 diario_id = extrair_diario_id(pdf)
+
+                etapa_atual = "calcular_pdf_hash"
+                pdf_hash = calcular_pdf_hash(pdf)
 
                 inicio_pdf = time.time()
 
@@ -570,6 +574,7 @@ def run():
                         contrato_normalizado=metadados[
                             "contrato_normalizado"
                         ],
+                        pdf_hash=pdf_hash,
                     )
 
                     if metadados["tipo"] == "pot":

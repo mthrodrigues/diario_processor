@@ -1,3 +1,4 @@
+import hashlib
 import re
 
 from pathlib import Path
@@ -15,6 +16,16 @@ def listar_pdfs():
     base_path = Path(BASE_DIARIO_PATH)
 
     return sorted(base_path.rglob("*.pdf"))
+
+
+def calcular_pdf_hash(pdf_path):
+    digest = hashlib.sha256()
+
+    with Path(pdf_path).open("rb") as arquivo:
+        for trecho in iter(lambda: arquivo.read(1024 * 1024), b""):
+            digest.update(trecho)
+
+    return digest.hexdigest()
 
 
 # =========================================================
