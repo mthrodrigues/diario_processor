@@ -11,10 +11,6 @@ PESSOA_ID = 10
 ORGAO_ID = 20
 
 
-class NenhumaTimelineAtivaError(RuntimeError):
-    pass
-
-
 class EncerramentoAmbiguoError(RuntimeError):
     pass
 
@@ -38,6 +34,7 @@ class ModeloTimeline:
         self._ids_por_evento_inicio = {}
         self._proximo_id = 1
         self.timelines = []
+        self.exoneracoes_sem_abertura_observavel = []
 
     def substituir_publicacao(self, publicacao_id, eventos):
         self._eventos_por_publicacao[publicacao_id] = tuple(eventos)
@@ -50,6 +47,7 @@ class ModeloTimeline:
         }
         abertas = []
         timelines = []
+        exoneracoes_sem_abertura_observavel = []
         eventos = sorted(
             (
                 evento
@@ -98,7 +96,8 @@ class ModeloTimeline:
             ]
 
             if not candidatas:
-                raise NenhumaTimelineAtivaError(evento.id)
+                exoneracoes_sem_abertura_observavel.append(evento.id)
+                continue
 
             if len(candidatas) != 1:
                 raise EncerramentoAmbiguoError(evento.id)
@@ -108,6 +107,10 @@ class ModeloTimeline:
             timeline["evento_fim_id"] = evento.id
             timeline["ativo"] = False
             abertas.remove(timeline)
+
+        self.exoneracoes_sem_abertura_observavel = exoneracoes_sem_abertura_observavel
+        if exoneracoes_sem_abertura_observavel:
+            return
 
         self.timelines = timelines
 
@@ -291,13 +294,13 @@ def test_exoneracao_com_duas_linhas_ativas_e_ambigua():
     assert all(timeline["ativo"] for timeline in modelo.timelines)
 
 
-def test_exoneracao_sem_linha_ativa_e_detectada():
+def test_exoneracao_sem_abertura_observavel_nao_cria_intervalo():
     modelo = ModeloTimeline()
 
-    with pytest.raises(NenhumaTimelineAtivaError):
-        modelo.substituir_publicacao(200, [exoneracao(2, 200, "2026-02-01")])
+    modelo.substituir_publicacao(200, [exoneracao(2, 200, "2026-02-01")])
 
     assert modelo.timelines == []
+    assert modelo.exoneracoes_sem_abertura_observavel == [2]
 
 
 def test_reprocessamento_seletivo_tem_mesmo_estado_da_reconstrucao_integral():

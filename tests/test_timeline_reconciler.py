@@ -2,7 +2,6 @@ from unittest import TestCase
 
 from timeline_reconciler import (
     EncerramentoAmbiguoError,
-    NenhumaTimelineAtivaError,
     TimelineReconciler,
 )
 
@@ -52,12 +51,14 @@ class TimelineReconcilerTest(TestCase):
         self.assertFalse(params_upsert[5])
         self.assertEqual(params_upsert[6:], (1, 2))
 
-    def test_detecta_exoneracao_sem_abertura(self):
+    def test_exoneracao_sem_abertura_observavel_nao_persiste_nem_remove_timelines(self):
         conn = ConexaoTimeline([(2, "EXONERACAO", "2026-02-01")])
 
-        with self.assertRaises(NenhumaTimelineAtivaError):
-            TimelineReconciler(conn).reconciliar_unidade(10, 20)
+        resultado = TimelineReconciler(conn).reconciliar_unidade(10, 20)
 
+        self.assertEqual(resultado.exoneracoes_sem_abertura_observavel, (2,))
+        self.assertEqual(len(conn.executed), 1)
+        self.assertIn("SELECT", conn.executed[0][0])
     def test_detecta_exoneracao_ambigua(self):
         conn = ConexaoTimeline([
             (1, "NOMEACAO", "2026-01-01"),
@@ -74,7 +75,7 @@ class TimelineReconcilerTest(TestCase):
             (2, "NOMEACAO", "2026-02-01"),
         ])
 
-        intervalos = TimelineReconciler(conn)._construir_intervalos(
+        intervalos, _ = TimelineReconciler(conn)._construir_intervalos(
             conn.eventos,
             10,
             20,
@@ -91,7 +92,7 @@ class TimelineReconcilerTest(TestCase):
             (3, "NOMEACAO", "2026-03-01"),
         ])
 
-        intervalos = TimelineReconciler(conn)._construir_intervalos(
+        intervalos, _ = TimelineReconciler(conn)._construir_intervalos(
             conn.eventos,
             10,
             20,
@@ -110,7 +111,7 @@ class TimelineReconcilerTest(TestCase):
             (3, "EXONERACAO", "2026-03-01"),
         ])
 
-        intervalos = TimelineReconciler(conn)._construir_intervalos(
+        intervalos, _ = TimelineReconciler(conn)._construir_intervalos(
             conn.eventos,
             10,
             20,

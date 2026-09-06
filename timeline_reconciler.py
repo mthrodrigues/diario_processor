@@ -1,15 +1,18 @@
+from dataclasses import dataclass
+
 from taxonomy.event_taxonomy import EXONERACAO, NOMEACAO
 
 
 LOTACAO = "LOTACAO"
 
 
-class NenhumaTimelineAtivaError(RuntimeError):
-    pass
-
-
 class EncerramentoAmbiguoError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class ResultadoReconciliacao:
+    exoneracoes_sem_abertura_observavel: tuple[int, ...]
 
 
 class TimelineReconciler:
@@ -22,18 +25,22 @@ class TimelineReconciler:
 
     def reconciliar_unidade(self, entidade_id, orgao_entidade_id, tipo_vinculo=LOTACAO):
         eventos = self._listar_eventos_temporais(entidade_id, orgao_entidade_id)
-        timelines_esperadas = self._construir_intervalos(
+        timelines_esperadas, exoneracoes_sem_abertura = self._construir_intervalos(
             eventos,
             entidade_id,
             orgao_entidade_id,
             tipo_vinculo,
         )
+        if exoneracoes_sem_abertura:
+            return ResultadoReconciliacao(tuple(exoneracoes_sem_abertura))
+
         self._persistir_intervalos(
             timelines_esperadas,
             entidade_id,
             orgao_entidade_id,
             tipo_vinculo,
         )
+        return ResultadoReconciliacao(())
 
     def _listar_eventos_temporais(self, entidade_id, orgao_entidade_id):
         with self.conn.cursor() as cursor:
@@ -68,6 +75,7 @@ class TimelineReconciler:
     ):
         intervalos = []
         abertos = []
+        exoneracoes_sem_abertura = []
 
         for evento_id, tipo_evento, data_evento in eventos:
             if tipo_evento == NOMEACAO:
@@ -91,7 +99,8 @@ class TimelineReconciler:
                 if intervalo["data_inicio"] <= data_evento
             ]
             if not candidatas:
-                raise NenhumaTimelineAtivaError(evento_id)
+                exoneracoes_sem_abertura.append(evento_id)
+                continue
             if len(candidatas) != 1:
                 raise EncerramentoAmbiguoError(evento_id)
 
@@ -101,7 +110,7 @@ class TimelineReconciler:
             intervalo["ativo"] = False
             abertos.remove(intervalo)
 
-        return intervalos
+        return intervalos, exoneracoes_sem_abertura
 
     def _persistir_intervalos(
         self,
