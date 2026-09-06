@@ -58,10 +58,6 @@ from infra.db.repositories.entity_relationship_repository import (
     EntityRelationshipRepository
 )
 
-from infra.db.repositories.timeline_repository import (
-    TimelineRepository
-)
-
 from infra.db.repositories.institutional_event_outbox_repository import (
     InstitutionalEventOutboxRepository
 )
@@ -84,6 +80,7 @@ from taxonomy.event_taxonomy import (
 from canonical_event_builder import (
     build_institutional_event
 )
+from timeline_reconciler import TimelineReconciler
 
 from consolidador_processos import consolidar_postgres
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
@@ -128,7 +125,7 @@ def run():
             EntityRelationshipRepository(conn)
         )
 
-        timeline_repository = TimelineRepository(conn)
+        timeline_reconciler = TimelineReconciler(conn)
 
         outbox_repository = (
             InstitutionalEventOutboxRepository(conn)
@@ -246,6 +243,7 @@ def run():
                 ec_aplicacoes = 0
                 ec_criterio = None
                 pot_indice = 0
+                unidades_temporais_afetadas = set()
 
                 for i, bloco in enumerate(
                     blocos,
@@ -478,6 +476,19 @@ def run():
                                     evento_id=evento_id
                                 )
 
+                                if _timeline_vinculo_valido(
+                                    tipo_evento,
+                                    entidade_pessoa_id,
+                                    entidade_orgao_id,
+                                ):
+                                    unidades_temporais_afetadas.add(
+                                        (
+                                            entidade_pessoa_id,
+                                            entidade_orgao_id,
+                                            "LOTACAO",
+                                        )
+                                    )
+
                         # =====================================
                         # ÓRGÃO
                         # =====================================
@@ -539,6 +550,10 @@ def run():
                         f"mas {len(publicacoes_pot)} publicação(ões) POT "
                         "extraída(s) do PDF."
                     )
+
+                etapa_atual = "reconciliar_timelines"
+                for unidade_temporal in sorted(unidades_temporais_afetadas):
+                    timeline_reconciler.reconciliar_unidade(*unidade_temporal)
 
                 novos += 1
 

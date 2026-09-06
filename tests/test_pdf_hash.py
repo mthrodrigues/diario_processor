@@ -191,6 +191,68 @@ class PdfHashTest(TestCase):
             [100, 100],
         )
 
+    def test_evento_temporal_reconcilia_somente_unidade_afetada_do_pdf(self):
+        conn = ConexaoTransacional()
+        publicacao_repository = Mock()
+        publicacao_repository.salvar_publicacao.return_value = 100
+        evento_repository = Mock()
+        evento_repository.salvar_evento.return_value = 1
+        entity_repository = Mock()
+        entity_repository.obter_ou_criar.side_effect = lambda tipo, _nome: {
+            "PESSOA": 10,
+            "ORGAO_PUBLICO": 20,
+        }[tipo]
+        timeline_reconciler = Mock()
+        evento = {
+            "tipo_evento": "NOMEACAO",
+            "agente": {"nome": "Maria"},
+            "orgao": "Secretaria",
+            "entidade_origem": {},
+            "entidade_destino": {},
+            "evidencia": {},
+        }
+
+        with self._main_isolado(conn, publicacao_repository) as repositorios, patch.object(
+            main,
+            "EntityRepository",
+            return_value=entity_repository,
+        ), patch.object(
+            main,
+            "TimelineReconciler",
+            return_value=timeline_reconciler,
+        ), patch.object(main, "listar_pdfs", return_value=[Path("diario_3279.pdf")]), patch.object(
+            main,
+            "extrair_diario_id",
+            return_value=3279,
+        ), patch.object(main, "calcular_pdf_hash", return_value="a" * 64), patch.object(
+            main,
+            "extrair_texto_paginado",
+            return_value=["pagina"],
+        ), patch.object(main, "sanear_texto_paginado", side_effect=lambda texto: texto), patch.object(
+            main,
+            "serializar_texto_paginado",
+            return_value="texto",
+        ), patch.object(main, "extrair_data_publicacao", return_value="2026-01-01"), patch.object(
+            main,
+            "segmentar_publicacoes_paginado",
+            return_value=["bloco"],
+        ), patch.object(main, "serializar_bloco_paginado", side_effect=lambda bloco: bloco), patch.object(
+            main,
+            "extrair_publicacoes_pot_estruturadas",
+            return_value=[],
+        ), patch.object(main, "ajustar_blocos_pot_estruturais", side_effect=lambda blocos, _pot: blocos), patch.object(
+            main,
+            "extrair_metadados_bloco",
+            return_value=METADADOS,
+        ), patch.object(main, "extrair_eventos_bloco", return_value=[evento]), patch.object(
+            main,
+            "build_institutional_event",
+            return_value=None,
+        ):
+            main.run()
+
+        timeline_reconciler.reconciliar_unidade.assert_called_once_with(10, 20, "LOTACAO")
+
     def test_erro_no_meio_da_persistencia_de_eventos_faz_rollback_do_pdf(self):
         conn = ConexaoTransacional()
         publicacao_repository = Mock()
@@ -248,6 +310,7 @@ class PdfHashTest(TestCase):
         pdf_aberto = MagicMock()
         pdf_aberto.__enter__.return_value = pdf_aberto
         evento_repository = Mock()
+        timeline_reconciler = Mock()
 
         with patch.object(main, "postgres_connection", postgres_connection_falsa), patch.object(
             main,
@@ -260,7 +323,11 @@ class PdfHashTest(TestCase):
         ), patch.object(main, "EntityRepository"), patch.object(
             main,
             "EntityRelationshipRepository",
-        ), patch.object(main, "TimelineRepository"), patch.object(
+        ), patch.object(
+            main,
+            "TimelineReconciler",
+            return_value=timeline_reconciler,
+        ), patch.object(
             main,
             "InstitutionalEventOutboxRepository",
         ), patch.object(main, "setup_logging", return_value=Mock()), patch.object(

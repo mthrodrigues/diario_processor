@@ -162,6 +162,9 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn("uq_eventos_publicacao_numero", sql_executado)
         self.assertIn("uq_evento_entidade_papel", sql_executado)
         self.assertIn("uq_relacionamento_evento_entidades_tipo", sql_executado)
+        self.assertIn("uq_timeline_evento_inicio", sql_executado)
+        self.assertIn("fk_timeline_evento_inicio", sql_executado)
+        self.assertIn("fk_timeline_evento_fim", sql_executado)
 
     def test_consolidador_contratos_usa_sql_e_parametros_postgres(self):
         conn = FakeConnection()

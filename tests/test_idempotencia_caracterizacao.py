@@ -211,7 +211,7 @@ class IdempotenciaCaracterizacaoTest(TestCase):
         ), patch.object(main, "EntityRepository"), patch.object(
             main,
             "EntityRelationshipRepository",
-        ), patch.object(main, "TimelineRepository"), patch.object(
+        ), patch.object(main, "TimelineReconciler"), patch.object(
             main,
             "InstitutionalEventOutboxRepository",
         ), patch.object(main, "setup_logging", return_value=Mock()), patch.object(
