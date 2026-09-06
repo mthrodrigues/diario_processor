@@ -313,6 +313,34 @@ def run():
                     previous_numero = i
 
                     # =========================================
+                    # SALVA PUBLICAÇÃO
+                    # =========================================
+
+                    etapa_atual = "salvar_publicacao"
+                    publicacao_id = repository.salvar_publicacao(
+                        diario_id,
+                        i,
+                        pdf,
+                        bloco,
+                        metadados["tipo"],
+                        metadados["processo"],
+                        metadados["contrato"],
+                        metadados["contratante"],
+                        metadados["fornecedor"],
+                        metadados["cnpj"],
+                        metadados["valores"],
+                        metadados["valor_principal"],
+                        metadados["vigencia"],
+                        metadados["objeto"],
+                        metadados["fornecedor_normalizado"],
+                        metadados["contratante_normalizado"],
+                        metadados["processo_normalizado"],
+                        data_publicacao=data_publicacao,
+                        contrato_normalizado=metadados["contrato_normalizado"],
+                        pdf_hash=pdf_hash,
+                    )
+
+                    # =========================================
                     # EVENTOS
                     # =========================================
 
@@ -328,7 +356,7 @@ def run():
                     # LOOP EVENTOS
                     # =========================================
 
-                    for evento in eventos:
+                    for numero_evento, evento in enumerate(eventos, start=1):
 
                         total_eventos += 1
 
@@ -342,6 +370,8 @@ def run():
                         evento_id = (
                             evento_repository.salvar_evento(
                                 evento,
+                                publicacao_id=publicacao_id,
+                                numero_evento=numero_evento,
                                 data_publicacao=data_publicacao
                             )
                         )
@@ -448,41 +478,6 @@ def run():
                                     evento_id=evento_id
                                 )
 
-                        # =========================================
-                        # TIMELINE FUNCIONAL
-                        # =========================================
-
-                        if _timeline_vinculo_valido(
-                            tipo_evento,
-                            entidade_pessoa_id,
-                            entidade_orgao_id,
-                        ):
-                            if tipo_evento == NOMEACAO:
-
-                                timeline_repository.abrir_vinculo(
-
-                                    entidade_pessoa_id,
-                                    entidade_orgao_id,
-
-                                    "LOTACAO",
-
-                                    data_publicacao,
-
-                                    evento_id
-                                )
-
-                            elif tipo_evento == EXONERACAO:
-
-                                timeline_repository.fechar_vinculo(
-
-                                    entidade_pessoa_id,
-                                    entidade_orgao_id,
-
-                                    data_publicacao,
-
-                                    evento_id
-                                )
-
                         # =====================================
                         # ÓRGÃO
                         # =====================================
@@ -530,53 +525,6 @@ def run():
                                 FORNECEDOR
                             )
 
-                    # =========================================
-                    # SALVA PUBLICAÇÃO
-                    # =========================================
-
-                    etapa_atual = "salvar_publicacao"
-                    publicacao_id = repository.salvar_publicacao(
-
-                        diario_id,
-                        i,
-                        pdf,
-                        bloco,
-
-                        metadados["tipo"],
-                        metadados["processo"],
-                        metadados["contrato"],
-
-                        metadados["contratante"],
-                        metadados["fornecedor"],
-
-                        metadados["cnpj"],
-                        metadados["valores"],
-
-                        metadados["valor_principal"],
-
-
-                        metadados["vigencia"],
-                        metadados["objeto"],
-
-                        metadados[
-                            "fornecedor_normalizado"
-                        ],
-
-                        metadados[
-                            "contratante_normalizado"
-                        ],
-
-                        metadados[
-                            "processo_normalizado"
-                        ],
-
-                        data_publicacao=data_publicacao,
-                        contrato_normalizado=metadados[
-                            "contrato_normalizado"
-                        ],
-                        pdf_hash=pdf_hash,
-                    )
-
                     if metadados["tipo"] == "pot":
                         etapa_atual = "salvar_pot"
                         pot_repository.substituir_registros(
@@ -609,7 +557,7 @@ def run():
                 print(f"  EC: {ec_info}")
                 print(f"  Concluído em: {duracao:.1f}s\n")
 
-            except Exception as e:
+            except BaseException as e:
 
                 conn.rollback()
 

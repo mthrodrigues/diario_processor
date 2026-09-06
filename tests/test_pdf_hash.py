@@ -136,6 +136,109 @@ class PdfHashTest(TestCase):
         self.assertEqual(conn.rollbacks, 1)
         repository.salvar_publicacao.assert_not_called()
 
+    def test_publicacao_e_persistida_antes_dos_eventos_numerados(self):
+        conn = ConexaoTransacional()
+        publicacao_repository = Mock()
+        publicacao_repository.salvar_publicacao.return_value = 100
+        eventos = [
+            {"tipo_evento": "NOMEACAO", "agente": {}, "evidencia": {}},
+            {"tipo_evento": "EXONERACAO", "agente": {}, "evidencia": {}},
+        ]
+        ordem = []
+
+        with self._main_isolado(conn, publicacao_repository) as evento_repository, patch.object(
+            main,
+            "listar_pdfs",
+            return_value=[Path("diario_3279.pdf")],
+        ), patch.object(main, "extrair_diario_id", return_value=3279), patch.object(
+            main,
+            "calcular_pdf_hash",
+            return_value="a" * 64,
+        ), patch.object(
+            main,
+            "extrair_texto_paginado",
+            return_value=["pagina"],
+        ), patch.object(main, "sanear_texto_paginado", side_effect=lambda texto: texto), patch.object(
+            main,
+            "serializar_texto_paginado",
+            return_value="texto",
+        ), patch.object(main, "extrair_data_publicacao", return_value=None), patch.object(
+            main,
+            "segmentar_publicacoes_paginado",
+            return_value=["bloco"],
+        ), patch.object(main, "serializar_bloco_paginado", side_effect=lambda bloco: bloco), patch.object(
+            main,
+            "extrair_publicacoes_pot_estruturadas",
+            return_value=[],
+        ), patch.object(
+            main,
+            "ajustar_blocos_pot_estruturais",
+            side_effect=lambda blocos, _pot: blocos,
+        ), patch.object(main, "extrair_metadados_bloco", return_value=METADADOS), patch.object(
+            main,
+            "extrair_eventos_bloco",
+            return_value=eventos,
+        ), patch.object(main, "build_institutional_event", return_value=None):
+            publicacao_repository.salvar_publicacao.side_effect = lambda *args, **kwargs: ordem.append("publicacao") or 100
+            evento_repository.salvar_evento.side_effect = lambda *args, **kwargs: ordem.append(
+                f"evento-{kwargs['numero_evento']}"
+            ) or kwargs["numero_evento"]
+            main.run()
+
+        self.assertEqual(ordem, ["publicacao", "evento-1", "evento-2"])
+        self.assertEqual(
+            [call.kwargs["publicacao_id"] for call in evento_repository.salvar_evento.call_args_list],
+            [100, 100],
+        )
+
+    def test_erro_no_meio_da_persistencia_de_eventos_faz_rollback_do_pdf(self):
+        conn = ConexaoTransacional()
+        publicacao_repository = Mock()
+        publicacao_repository.salvar_publicacao.return_value = 100
+        eventos = [
+            {"tipo_evento": "NOMEACAO", "agente": {}, "evidencia": {}},
+            {"tipo_evento": "EXONERACAO", "agente": {}, "evidencia": {}},
+        ]
+
+        with self._main_isolado(conn, publicacao_repository) as evento_repository, patch.object(
+            main,
+            "listar_pdfs",
+            return_value=[Path("diario_3279.pdf")],
+        ), patch.object(main, "extrair_diario_id", return_value=3279), patch.object(
+            main,
+            "calcular_pdf_hash",
+            return_value="a" * 64,
+        ), patch.object(
+            main,
+            "extrair_texto_paginado",
+            return_value=["pagina"],
+        ), patch.object(main, "sanear_texto_paginado", side_effect=lambda texto: texto), patch.object(
+            main,
+            "serializar_texto_paginado",
+            return_value="texto",
+        ), patch.object(main, "extrair_data_publicacao", return_value=None), patch.object(
+            main,
+            "segmentar_publicacoes_paginado",
+            return_value=["bloco"],
+        ), patch.object(main, "serializar_bloco_paginado", side_effect=lambda bloco: bloco), patch.object(
+            main,
+            "extrair_publicacoes_pot_estruturadas",
+            return_value=[],
+        ), patch.object(
+            main,
+            "ajustar_blocos_pot_estruturais",
+            side_effect=lambda blocos, _pot: blocos,
+        ), patch.object(main, "extrair_metadados_bloco", return_value=METADADOS), patch.object(
+            main,
+            "extrair_eventos_bloco",
+            return_value=eventos,
+        ), patch.object(main, "build_institutional_event", return_value=None):
+            evento_repository.salvar_evento.side_effect = [1, RuntimeError("falha controlada")]
+            main.run()
+
+        self.assertEqual(conn.rollbacks, 1)
+        self.assertEqual(evento_repository.salvar_evento.call_count, 2)
+
     @contextmanager
     def _main_isolado(self, conn, repository):
         @contextmanager
@@ -144,6 +247,7 @@ class PdfHashTest(TestCase):
 
         pdf_aberto = MagicMock()
         pdf_aberto.__enter__.return_value = pdf_aberto
+        evento_repository = Mock()
 
         with patch.object(main, "postgres_connection", postgres_connection_falsa), patch.object(
             main,
@@ -152,6 +256,7 @@ class PdfHashTest(TestCase):
         ), patch.object(main, "PotRepository"), patch.object(
             main,
             "EventoRepository",
+            return_value=evento_repository,
         ), patch.object(main, "EntityRepository"), patch.object(
             main,
             "EntityRelationshipRepository",
@@ -169,4 +274,4 @@ class PdfHashTest(TestCase):
             main,
             "consolidar_contratos_postgres",
         ), patch.object(main.pdfplumber, "open", return_value=pdf_aberto):
-            yield
+            yield evento_repository

@@ -177,6 +177,24 @@ class IdempotenciaCaracterizacaoTest(TestCase):
 
         self.assertEqual(conn.rollbacks, 1)
 
+    def test_keyboard_interrupt_provoca_rollback_da_transacao_atual(self):
+        conn = ConexaoTransacional()
+        repository = Mock()
+
+        with self._main_isolado(conn, repository):
+            with patch.object(main, "listar_pdfs", return_value=[Path("diario_3279.pdf")]), patch.object(
+                main,
+                "extrair_diario_id",
+                return_value=3279,
+            ), patch.object(
+                main,
+                "calcular_pdf_hash",
+                side_effect=KeyboardInterrupt,
+            ):
+                main.run()
+
+        self.assertEqual(conn.rollbacks, 1)
+
     @contextmanager
     def _main_isolado(self, conn, repository):
         @contextmanager

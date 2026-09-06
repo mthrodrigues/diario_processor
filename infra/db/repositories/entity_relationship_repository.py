@@ -51,6 +51,14 @@ class EntityRelationshipRepository:
                     %s
 
                 )
+                ON CONFLICT (
+                    evento_id,
+                    entidade_origem_id,
+                    entidade_destino_id,
+                    tipo_relacao
+                ) DO UPDATE SET
+                    diario_id = COALESCE(EXCLUDED.diario_id, {self.table}.diario_id),
+                    data_publicacao = COALESCE(EXCLUDED.data_publicacao, {self.table}.data_publicacao)
                 """,
                 (
                     entidade_origem_id,

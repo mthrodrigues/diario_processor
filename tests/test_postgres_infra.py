@@ -157,6 +157,11 @@ class PostgresInfraTest(unittest.TestCase):
         self.assertIn("ADD CONSTRAINT uq_publicacoes_pdf_bloco", sql_executado)
         self.assertIn("UNIQUE (pdf_hash, numero_bloco)", sql_executado)
         self.assertIn("possui definicao incompativel", sql_executado)
+        self.assertIn("ADD COLUMN publicacao_id BIGINT", sql_executado)
+        self.assertIn("ADD COLUMN numero_evento INTEGER", sql_executado)
+        self.assertIn("uq_eventos_publicacao_numero", sql_executado)
+        self.assertIn("uq_evento_entidade_papel", sql_executado)
+        self.assertIn("uq_relacionamento_evento_entidades_tipo", sql_executado)
 
     def test_consolidador_contratos_usa_sql_e_parametros_postgres(self):
         conn = FakeConnection()

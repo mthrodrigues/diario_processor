@@ -58,7 +58,7 @@ class PostgresConnectionPool:
 
         try:
             yield conn
-        except Exception:
+        except BaseException:
             conn.rollback()
             raise
         else:
