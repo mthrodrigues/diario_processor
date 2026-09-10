@@ -9,10 +9,52 @@ from datetime import datetime
 
 from consolidacao import executar
 from infra.db.migrations.runner import quote_ident
+from normalizer import normalize_processo
+
+
+def obter_ou_criar_processo(conn, processo, schema=None):
+    """Retorna o ID do processo, criando o catálogo quando necessário."""
+    processo_normalizado = normalize_processo(processo)
+
+    if processo_normalizado is None:
+        return None
+
+    schema = quote_ident(schema or "diario")
+    tabela = f"{schema}.processos"
+
+    with conn.cursor() as cursor:
+        cursor.execute(
+            f"""
+            INSERT INTO {tabela} (
+                processo,
+                processo_normalizado,
+                quantidade_publicacoes
+            ) VALUES (%s, %s, 0)
+            ON CONFLICT (processo_normalizado) DO NOTHING
+            """,
+            (
+                processo,
+                processo_normalizado,
+            ),
+        )
+
+        cursor.execute(
+            f"""
+            SELECT id
+            FROM {tabela}
+            WHERE processo_normalizado = %s
+            """,
+            (processo_normalizado,),
+        )
+
+        resultado = cursor.fetchone()
+
+    return resultado[0] if resultado else None
 
 
 def consolidar_sqlite(conn):
     """Consolida publicacoes em processos usando uma conexao SQLite aberta."""
+
     def carregar_grupos(conexao):
         cursor = conexao.cursor()
         cursor.execute(
@@ -54,7 +96,15 @@ def consolidar_sqlite(conn):
                     atualizado_em
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (processo, processo_normalizado, primeira, ultima, quantidade, agora, agora),
+                (
+                    processo,
+                    processo_normalizado,
+                    primeira,
+                    ultima,
+                    quantidade,
+                    agora,
+                    agora,
+                ),
             )
         elif existente[1:5] != valores:
             cursor.execute(
@@ -83,20 +133,44 @@ def consolidar_postgres(conn, schema=None):
     schema = quote_ident(schema or "diario")
     publicacoes = f"{schema}.publicacoes"
     processos = f"{schema}.processos"
+    publicacao_processos = f"{schema}.publicacao_processos"
 
     def carregar_grupos(conexao):
         with conexao.cursor() as cursor:
             cursor.execute(
                 f"""
+                WITH fontes AS (
+                    SELECT
+                        processo_normalizado,
+                        NULLIF(BTRIM(processo), '') AS processo,
+                        data_publicacao,
+                        id AS publicacao_id
+                    FROM {publicacoes}
+                    WHERE processo_normalizado IS NOT NULL
+                      AND BTRIM(processo_normalizado) <> ''
+
+                    UNION ALL
+
+                    SELECT
+                        p.processo_normalizado,
+                        NULLIF(BTRIM(p.processo), '') AS processo,
+                        pub.data_publicacao,
+                        pp.publicacao_id
+                    FROM {publicacao_processos} pp
+                    JOIN {processos} p
+                        ON p.id = pp.processo_id
+                    JOIN {publicacoes} pub
+                        ON pub.id = pp.publicacao_id
+                    WHERE p.processo_normalizado IS NOT NULL
+                      AND BTRIM(p.processo_normalizado) <> ''
+                )
                 SELECT
                     processo_normalizado,
-                    MIN(NULLIF(BTRIM(processo), '')),
+                    MIN(processo),
                     MIN(data_publicacao),
                     MAX(data_publicacao),
-                    COUNT(*)
-                FROM {publicacoes}
-                WHERE processo_normalizado IS NOT NULL
-                  AND BTRIM(processo_normalizado) <> ''
+                    COUNT(DISTINCT publicacao_id)
+                FROM fontes
                 GROUP BY processo_normalizado
                 """
             )
@@ -110,8 +184,12 @@ def consolidar_postgres(conn, schema=None):
             cursor.execute(
                 f"""
                 INSERT INTO {processos} (
-                    processo, processo_normalizado, data_primeira_publicacao,
-                    data_ultima_publicacao, quantidade_publicacoes, criado_em,
+                    processo,
+                    processo_normalizado,
+                    data_primeira_publicacao,
+                    data_ultima_publicacao,
+                    quantidade_publicacoes,
+                    criado_em,
                     atualizado_em
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (processo_normalizado) DO UPDATE SET
@@ -128,7 +206,15 @@ def consolidar_postgres(conn, schema=None):
                    OR {processos}.quantidade_publicacoes IS DISTINCT FROM
                       EXCLUDED.quantidade_publicacoes
                 """,
-                (processo, processo_normalizado, primeira, ultima, quantidade, agora, agora),
+                (
+                    processo,
+                    processo_normalizado,
+                    primeira,
+                    ultima,
+                    quantidade,
+                    agora,
+                    agora,
+                ),
             )
 
     return executar(conn, carregar_grupos, persistir_grupo)

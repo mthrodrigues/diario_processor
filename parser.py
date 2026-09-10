@@ -636,6 +636,65 @@ def extrair_processo(texto):
 
     return None
 
+def extrair_processos(texto):
+    """
+    Extrai todas as ocorrências de processo administrativo do texto.
+
+    Retorna as ocorrências na ordem em que aparecem no texto.
+    """
+    if not texto:
+        return []
+
+    numero_processo = r'(\d+(?:\.\d+)*(?:-\d+)?\s*/\s*\d{2,4}(?:-\d+)?)'
+
+    padroes_contexto = [
+        rf'\bPROCESSO\s*:?\s*(?:ADMINISTRATIVO|LICITAT[ÓO]RIO)?\s*'
+        rf'(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
+        rf'\bPROC(?:ESSO)?\.\s*(?:N\s*[°ºO\.]?\s*)?{numero_processo}',
+    ]
+
+    ocorrencias = []
+
+    for padrao in padroes_contexto:
+        for match in re.finditer(
+            padrao,
+            texto,
+            flags=re.IGNORECASE,
+        ):
+            processo = re.sub(r'\s+/', '/', match.group(1))
+
+            ocorrencias.append({
+                "processo": processo,
+                "evidencia_textual": texto[match.start():match.end()],
+                "_inicio": match.start(),
+            })
+
+    ocorrencias.sort(key=lambda item: item["_inicio"])
+
+    resultado = []
+
+    vistos = set()
+
+    for ocorrencia in ocorrencias:
+        chave = (
+            ocorrencia["processo"],
+            ocorrencia["_inicio"],
+            ocorrencia["evidencia_textual"],
+        )
+
+        if chave in vistos:
+            continue
+
+        vistos.add(chave)
+
+        resultado.append({
+            "processo": ocorrencia["processo"],
+            "evidencia_textual": ocorrencia["evidencia_textual"],
+            "ordem_no_texto": len(resultado) + 1,
+        })
+
+    return resultado
+
 def extrair_fornecedor(texto):
     """
     Extrai fornecedor baseado em contexto documental.

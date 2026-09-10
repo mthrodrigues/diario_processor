@@ -16,6 +16,7 @@ from parser import (
     extrair_vigencia,
     sanear_texto_pdf,
     segmentar_publicacoes,
+    extrair_processos,
 )
 
 
@@ -111,6 +112,62 @@ def test_sem_referencia():
 
     assert extrair_processo(texto) is None
 
+# =====================================================
+# TESTES - EXTRAÇÃO MÚLTIPLA DE PROCESSOS
+# =====================================================
+
+def test_extrair_processos_multiplos():
+    texto = (
+        "Termo de Autorização n° 016.005.2025. "
+        "Processo n° 26.758/2025. "
+        "Termo de Autorização n° 017.005.2025. "
+        "Processo n° 29.295/2025."
+    )
+
+    assert extrair_processos(texto) == [
+        {
+            "processo": "26.758/2025",
+            "evidencia_textual": "Processo n° 26.758/2025",
+            "ordem_no_texto": 1,
+        },
+        {
+            "processo": "29.295/2025",
+            "evidencia_textual": "Processo n° 29.295/2025",
+            "ordem_no_texto": 2,
+        },
+    ]
+
+def test_extrair_processos_preserva_repeticoes():
+    texto = (
+        "Processo n° 22.254/2015. "
+        "Processo n° 22.254/2015. "
+        "Processo n° 22.254/2015. "
+        "Processo n° 22.254/2015."
+    )
+
+    resultado = extrair_processos(texto)
+
+    assert [item["processo"] for item in resultado] == [
+        "22.254/2015",
+        "22.254/2015",
+        "22.254/2015",
+        "22.254/2015",
+    ]
+
+    assert [item["ordem_no_texto"] for item in resultado] == [1, 2, 3, 4]
+
+def test_extrair_processos_aceita_quebra_de_linha():
+    texto = "Prazo: 12 meses. Processo\nn° 26.758/2025."
+
+    resultado = extrair_processos(texto)
+
+    assert resultado == [
+        {
+            "processo": "26.758/2025",
+            "evidencia_textual": "Processo\nn° 26.758/2025",
+            "ordem_no_texto": 1,
+        }
+    ]
 
 # =====================================================
 # TESTES - IDENTIFICAÇÃO DOCUMENTAL

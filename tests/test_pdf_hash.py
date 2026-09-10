@@ -316,6 +316,9 @@ class PdfHashTest(TestCase):
             main,
             "PublicacaoRepository",
             return_value=repository,
+        ), patch.object(
+            main,
+            "PublicacaoProcessoRepository",
         ), patch.object(main, "PotRepository"), patch.object(
             main,
             "EventoRepository",

@@ -5,10 +5,14 @@ import unittest
 from config import PostgresConfig, get_postgres_config
 from infra.db.connection import PostgresConnectionPool
 from infra.db.migrations.runner import quote_ident, run_migrations
+from infra.db.repositories.publicacao_processo_repository import PublicacaoProcessoRepository
 from infra.db.repositories.publicacao_repository import PublicacaoRepository
 from infra.db.repositories.pot_repository import PotRepository
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
-
+from consolidador_processos import (
+    consolidar_postgres,
+    obter_ou_criar_processo,
+)
 
 class FakeCursor:
     def __init__(self, conn):
@@ -438,6 +442,190 @@ class PostgresInfraTest(unittest.TestCase):
             sql,
         )
         self.assertEqual(params, (123,))
+
+    def test_repository_publicacao_processo_substitui_registros(self):
+        conn = FakeConnection()
+        repo = PublicacaoProcessoRepository(conn, schema="diario")
+
+        registros = [
+            {
+                "processo_id": 5554,
+                "evidencia_textual": "Processo n° 26.758/2025",
+                "ordem_no_texto": 1,
+            },
+            {
+                "processo_id": 5555,
+                "evidencia_textual": "Processo n° 29.295/2025",
+                "ordem_no_texto": 2,
+            },
+        ]
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=32,
+            registros=registros,
+        )
+
+        self.assertEqual(quantidade, 2)
+        self.assertEqual(len(conn.executed), 3)
+
+        sql_delete, params_delete = conn.executed[0]
+
+        self.assertIn(
+            'DELETE FROM "diario".publicacao_processos',
+            sql_delete,
+        )
+        self.assertEqual(params_delete, (32,))
+
+        sql_insert_1, params_1 = conn.executed[1]
+        sql_insert_2, params_2 = conn.executed[2]
+
+        self.assertIn(
+            '"diario".publicacao_processos',
+            sql_insert_1,
+        )
+        self.assertIn(
+            '"diario".publicacao_processos',
+            sql_insert_2,
+        )
+
+        self.assertEqual(params_1, (32, 5554, "Processo n° 26.758/2025", 1))
+        self.assertEqual(params_2, (32, 5555, "Processo n° 29.295/2025", 2))
+
+    def test_repository_publicacao_processo_lista_vazia(self):
+        conn = FakeConnection()
+        repo = PublicacaoProcessoRepository(conn, schema="diario")
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=32,
+            registros=[],
+        )
+
+        self.assertEqual(quantidade, 0)
+        self.assertEqual(len(conn.executed), 1)
+
+        sql, params = conn.executed[0]
+
+        self.assertIn(
+            'DELETE FROM "diario".publicacao_processos',
+            sql,
+        )
+        self.assertEqual(params, (32,))
+
+    def test_obter_ou_criar_processo_retorna_id_existente(self):
+        conn = FakeConnection()
+        conn.fetchone_queue.append((5554,))
+
+        processo_id = obter_ou_criar_processo(
+            conn,
+            "26.758/2025",
+            schema="diario",
+        )
+
+        self.assertEqual(processo_id, 5554)
+        self.assertEqual(len(conn.executed), 2)
+
+        sql_insert, params_insert = conn.executed[0]
+        sql_select, params_select = conn.executed[1]
+
+        self.assertIn('"diario".processos', sql_insert)
+        self.assertIn(
+            "ON CONFLICT (processo_normalizado) DO NOTHING",
+            sql_insert,
+        )
+        self.assertEqual(
+            params_insert,
+            ("26.758/2025", "26.758/2025"),
+        )
+
+        self.assertIn('"diario".processos', sql_select)
+        self.assertEqual(
+            params_select,
+            ("26.758/2025",),
+        )
+
+    def test_obter_ou_criar_processo_ignora_valor_invalido(self):
+        conn = FakeConnection()
+
+        processo_id = obter_ou_criar_processo(
+            conn,
+            None,
+            schema="diario",
+        )
+
+        self.assertIsNone(processo_id)
+        self.assertEqual(conn.executed, [])
+
+    def test_consolidador_processos_usa_publicacao_processos(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.append([
+            (
+                "22.254/2015",
+                "22.254/2015",
+                "2026-01-01",
+                "2026-03-01",
+                2,
+            )
+        ])
+
+        quantidade = consolidar_postgres(
+            conn,
+            schema="diario",
+        )
+
+        self.assertEqual(quantidade, 1)
+
+        sql_select, _ = conn.executed[0]
+
+        self.assertIn(
+            '"diario".publicacao_processos',
+            sql_select,
+        )
+        self.assertIn(
+            "COUNT(DISTINCT",
+            sql_select,
+        )
+        self.assertIn(
+            '"diario".publicacoes',
+            sql_select,
+        )
+        self.assertIn(
+            '"diario".processos',
+            conn.executed[-1][0],
+        )
+
+    def test_consolidador_processos_preserva_publicacoes_distintas(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.append([
+            (
+                "22.254/2015",
+                "22.254/2015",
+                "2026-01-01",
+                "2026-03-01",
+                2,
+            )
+        ])
+
+        quantidade = consolidar_postgres(
+            conn,
+            schema="diario",
+        )
+
+        self.assertEqual(quantidade, 1)
+
+        sql_select, _ = conn.executed[0]
+
+        self.assertIn(
+            "UNION ALL",
+            sql_select,
+        )
+        self.assertIn(
+            "COUNT(DISTINCT publicacao_id)",
+            sql_select,
+        )
+        self.assertIn(
+            '"diario".publicacao_processos',
+            sql_select,
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,7 @@ from parser import (
     segmentar_publicacoes_paginado,
     serializar_bloco_paginado,
     serializar_texto_paginado,
+    extrair_processos,
 )
 from processor import extrair_metadados_bloco
 
@@ -40,6 +41,10 @@ from infra.db.connection import postgres_connection
 
 from infra.db.repositories.publicacao_repository import (
     PublicacaoRepository
+)
+
+from infra.db.repositories.publicacao_processo_repository import (
+    PublicacaoProcessoRepository
 )
 
 from infra.db.repositories.pot_repository import (
@@ -82,7 +87,7 @@ from canonical_event_builder import (
 )
 from timeline_reconciler import TimelineReconciler
 
-from consolidador_processos import consolidar_postgres
+from consolidador_processos import consolidar_postgres, obter_ou_criar_processo
 from consolidador_contratos import consolidar_postgres as consolidar_contratos_postgres
 
 from pot_extractor import (
@@ -116,6 +121,7 @@ def run():
     with postgres_connection() as conn:
         repository = PublicacaoRepository(conn)
         pot_repository = PotRepository(conn)
+        publicacao_processo_repository = PublicacaoProcessoRepository(conn)
 
         evento_repository = EventoRepository(conn)
 
@@ -336,6 +342,39 @@ def run():
                         data_publicacao=data_publicacao,
                         contrato_normalizado=metadados["contrato_normalizado"],
                         pdf_hash=pdf_hash,
+                    )
+
+                    # =========================================
+                    # PROCESSOS NA PUBLICAÇÃO
+                    # =========================================
+
+                    etapa_atual = "extrair_processos"
+                    processos_extraidos = extrair_processos(bloco)
+
+                    registros_processos = []
+
+                    for ocorrencia in processos_extraidos:
+                        processo_id = obter_ou_criar_processo(
+                            conn,
+                            ocorrencia["processo"],
+                            schema=get_postgres_config().schema,
+                        )
+
+                        if processo_id is None:
+                            continue
+
+                        registros_processos.append(
+                            {
+                                "processo_id": processo_id,
+                                "evidencia_textual": ocorrencia["evidencia_textual"],
+                                "ordem_no_texto": ocorrencia["ordem_no_texto"],
+                            }
+                        )
+
+                    etapa_atual = "salvar_processos"
+                    publicacao_processo_repository.substituir_registros(
+                        publicacao_id,
+                        registros_processos,
                     )
 
                     # =========================================
