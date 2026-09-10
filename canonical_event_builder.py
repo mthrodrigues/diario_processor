@@ -67,6 +67,10 @@ def build_institutional_event(
                 "agente"
             ),
 
+            "participantes": evento.get(
+                "participantes"
+            ),
+
             "entidade_origem": evento.get(
                 "entidade_origem"
             ),

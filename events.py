@@ -1,5 +1,7 @@
 import re
 
+from parser import extrair_contrato
+
 from taxonomy.entity_taxonomy import (
 
     EMPRESA,
@@ -80,7 +82,7 @@ def extrair_agente_publico(texto):
 
         r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+do\s+Cargo",
 
-        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?),\s*matr[ií]cula",
+        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*matr[ií]cula",
 
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para exercer",
 
@@ -127,6 +129,112 @@ def extrair_agente_publico(texto):
             return nome
 
     return None
+
+
+# =====================================================
+# EXTRAÇÃO DE MÚLTIPLOS PARTICIPANTES
+# =====================================================
+
+def extrair_participantes_cacs_fundeb(texto):
+    padrao = r"(?:Titular|Suplente):\s*([^\n\r]+)"
+    matches = re.findall(padrao, texto, flags=re.IGNORECASE)
+    if not matches:
+        return []
+
+    participantes = []
+    nomes_vistos = set()
+
+    for item in matches:
+        nome = item.strip(" ,.-")
+        nome = re.sub(r"\s+", " ", nome)
+        if "CARGO VAGO" in nome.upper() or nome.upper() == "VAGO":
+            continue
+        nome = re.split(
+            r"\s+(?:CPF|matr[ií]cula|matricula)",
+            nome,
+            flags=re.IGNORECASE
+        )[0].strip()
+        if len(nome.split()) < 2:
+            continue
+        chave = nome.upper()
+        if chave not in nomes_vistos:
+            nomes_vistos.add(chave)
+            participantes.append({
+                "tipo": PESSOA,
+                "nome": nome
+            })
+
+    return participantes
+
+
+def extrair_servidores_designados(texto):
+    padrao = (
+        r"NOMEAR(?:\s*,?\s+nos\s+termos.*?,)?\s*,?\s*"
+        r"(?:as?\s+servidoras?|os?\s+servidores?|os?\s+funcionários?)\s+"
+        r"(.+?)"
+        r"(?:,\s*em\s+substitui[çc][ãa]o|\s+em\s+substitui[çc][ãa]o|,\s*como\s+respons[áa]ve(?:l|is)|\s+como\s+respons[áa]ve(?:l|is)|\s+para\s+exercer|\s+para\s+integrar|\s+para\s+acompanhar)"
+    )
+    match = re.search(padrao, texto, flags=re.IGNORECASE | re.DOTALL)
+    if not match:
+        return []
+
+    bloco_nomes = match.group(1)
+    bloco_nomes = re.sub(
+        r",?\s*matr[ií]cula\s*n?[º°]?\s*[\d.\-]+(?:\s*\d+)?",
+        "",
+        bloco_nomes,
+        flags=re.IGNORECASE
+    )
+
+    partes = re.split(r",?\s+e\s+|,\s*", bloco_nomes, flags=re.IGNORECASE)
+    participantes = []
+    nomes_vistos = set()
+
+    for parte in partes:
+        nome = re.sub(r"^(?:e|ou)\s+", "", parte, flags=re.IGNORECASE).strip(" ,.-")
+        nome = re.sub(r"\s+", " ", nome)
+        if len(nome.split()) < 2:
+            continue
+        if "LEI" in nome.upper() or "COMPLEMENTAR" in nome.upper():
+            continue
+        chave = nome.upper()
+        if chave not in nomes_vistos:
+            nomes_vistos.add(chave)
+            participantes.append({
+                "tipo": PESSOA,
+                "nome": nome
+            })
+
+    return participantes
+
+
+def extrair_participantes_evento(subevento, texto_bloco=None):
+    # 1. Estrutura colegiada com De: e Para: (ex.: CACS/FUNDEB)
+    if re.search(r"\bDe:\s*", subevento, re.IGNORECASE) and re.search(r"\bPara:\s*", subevento, re.IGNORECASE):
+        participantes = extrair_participantes_cacs_fundeb(subevento)
+        if participantes:
+            return participantes
+
+    # Se o preâmbulo contiver citação a portaria anterior e a estrutura De:/Para: estiver no bloco
+    if texto_bloco and re.search(r"\bDe:\s*", texto_bloco, re.IGNORECASE) and re.search(r"\bPara:\s*", texto_bloco, re.IGNORECASE):
+        participantes = extrair_participantes_cacs_fundeb(texto_bloco)
+        if participantes:
+            return participantes
+
+    # 2. Atos com múltiplos servidores nomeados/designados
+    participantes = extrair_servidores_designados(subevento)
+    if participantes:
+        return participantes
+
+    # 3. Fallback para agente singular existente
+    agente = extrair_agente_publico(subevento)
+    if agente:
+        return [{
+            "tipo": PESSOA,
+            "nome": agente
+        }]
+
+    return []
 
 
 # =====================================================
@@ -192,7 +300,6 @@ def limpar_texto_institucional(texto):
         r"Documento assinado digitalmente.*",
         r"ICP-Brasil.*",
         r"DIÁRIO OFICIAL ELETRÔNICO.*",
-        r"Município de Teresópolis.*",
         r"Estado do Rio de Janeiro.*",
         r"PODER EXECUTIVO MUNICIPAL.*",
         r"Criado pela Lei Municipal.*",
@@ -235,16 +342,42 @@ def extrair_orgao(texto):
     texto = limpar_texto_institucional(texto)
 
     padroes = [
+        # ================================================
+        # Formas institucionais específicas em contexto
+        # contratual: primeiro as mais específicas
+        # ================================================
+
+        r"firmado entre o Município de Teresópolis através da\s+(Procuradoria Geral do Município)",
+
+        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
+
+        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
+
+        r"firmado entre a\s+(Secretaria de Obras e Serviços Públicos)",
+
+        r"\bna\s+(Procuradoria Geral(?: do Município)?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
+
+        r"\bda\s+(Procuradoria Geral(?: do Município)?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
+
+        # ================================================
+        # Formas institucionais diretas
+        # ================================================
+
+        r"firmado entre a\s+(Prefeitura Municipal de Teresópolis)",
+
+        r"firmado entre o\s+(Município de Teresópolis)(?=\s+e\s+)",
+
+        # ================================================
+        # Padrões existentes
+        # ================================================
 
         r"(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
         r"na\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
+        r"\bo\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=\s+e\s+(?:(?-i:[ao])\s+)?(?-i:[A-ZÀ-Ú])|\s*,|\s+cujo objeto|\s+que tem por objeto|\s+com efeitos|\s+a partir|$)",
+
         r"do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
-
-        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
-
-        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
     ]
 
     for padrao in padroes:
@@ -337,8 +470,9 @@ def extrair_eventos_bloco(
 
         evento = None
 
+        # Dá truncate no subevento para o processamento do evento
         subevento = subevento[:2000]
-
+        # Dá upper na versão do evento usado para o tipo de detecção do evento
         subevento_upper = subevento.upper()
 
         # =====================================================
@@ -403,15 +537,12 @@ def extrair_eventos_bloco(
             or "ACOMPANHAMENTO E FISCALIZAÇÃO" in subevento_upper
         ):
 
-            agente = extrair_agente_publico(subevento)
+            participantes = extrair_participantes_evento(subevento, texto_bloco=texto_bloco)
+            agente = participantes[0]["nome"] if len(participantes) == 1 else None
 
             orgao = extrair_orgao(subevento)
 
-            instrumento = re.search(
-                r"(?:CONTRATO|TERMO DE COLABORAÇÃO|TERMO DE INCENTIVO|CONVÊNIO|ACORDO DE COOPERAÇÃO)\s*N?[º°]?\s*([0-9\./\-]+)",
-                subevento,
-                re.IGNORECASE
-            )
+            instrumento = extrair_contrato(subevento)
 
             evento = {
                 "tipo_evento": DESIGNACAO_FISCAL,
@@ -421,9 +552,11 @@ def extrair_eventos_bloco(
                     "nome": agente
                 },
 
+                "participantes": participantes,
+
                 "orgao": orgao,
 
-                "contrato": metadados.get("contrato"),
+                "contrato": instrumento,
 
                 "evidencia": {
                     "diario_id": diario_id,
@@ -443,7 +576,8 @@ def extrair_eventos_bloco(
 
         if "NOMEAR" in subevento_upper:
 
-            agente = extrair_agente_publico(subevento)
+            participantes = extrair_participantes_evento(subevento, texto_bloco=texto_bloco)
+            agente = participantes[0]["nome"] if len(participantes) == 1 else None
 
             cargo = extrair_cargo(subevento)
 
@@ -456,6 +590,8 @@ def extrair_eventos_bloco(
                     "tipo": PESSOA,
                     "nome": agente
                 },
+
+                "participantes": participantes,
 
                 "cargo": cargo,
 
@@ -478,7 +614,8 @@ def extrair_eventos_bloco(
 
         if "EXONERAR" in subevento_upper:
 
-            agente = extrair_agente_publico(subevento)
+            participantes = extrair_participantes_evento(subevento, texto_bloco=texto_bloco)
+            agente = participantes[0]["nome"] if len(participantes) == 1 else None
 
             cargo = extrair_cargo(subevento)
 
@@ -491,6 +628,8 @@ def extrair_eventos_bloco(
                     "tipo": PESSOA,
                     "nome": agente
                 },
+
+                "participantes": participantes,
 
                 "cargo": cargo,
 

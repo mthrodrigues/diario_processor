@@ -414,8 +414,33 @@ def run():
                         # AGENTE
                         # =====================================
 
+                        # =====================================
+                        # PARTICIPANTES / AGENTES
+                        # =====================================
+
                         entidade_pessoa_id = None
                         entidade_orgao_id = None
+
+                        participantes = evento.get("participantes")
+                        if participantes:
+                            for participante in participantes:
+                                p_nome = (
+                                    participante.get("nome")
+                                    if isinstance(participante, dict)
+                                    else participante
+                                )
+                                if p_nome:
+                                    p_id = entity_repository.obter_ou_criar(
+                                        PESSOA,
+                                        p_nome
+                                    )
+                                    # NOTA: O vocabulário definitivo de papel ainda não foi estabelecido nesta etapa.
+                                    # Usamos AGENTE_PUBLICO provisoriamente para persistir a associação na tabela relacional.
+                                    evento_repository.relacionar_entidade(
+                                        evento_id,
+                                        p_id,
+                                        AGENTE_PUBLICO
+                                    )
 
                         agente_nome = (
                             evento.get("agente", {})
@@ -436,46 +461,72 @@ def run():
                                 entidade_pessoa_id,
                                 AGENTE_PUBLICO
                             )
+                        # =================================
+                        # RELAÇÃO PESSOA → ÓRGÃO
+                        # =================================
 
-                            # =================================
-                            # RELAÇÃO PESSOA → ÓRGÃO
-                            # =================================
+                        orgao_nome = evento.get("orgao")
 
-                            orgao_nome = evento.get("orgao")
+                        if orgao_nome:
 
-                            if orgao_nome:
-
-                                entidade_orgao_id = (
-                                    entity_repository.obter_ou_criar(
-                                        ORGAO_PUBLICO,
-                                        orgao_nome
-                                    )
+                            entidade_orgao_id = (
+                                entity_repository.obter_ou_criar(
+                                    ORGAO_PUBLICO,
+                                    orgao_nome
                                 )
+                            )
 
-                                tipo_relacao = (
-                                    resolver_relacao_evento(
-                                        evento.get(
-                                            "tipo_evento"
+                            # ---------------------------------------------------
+                            # Relações pessoa → órgão para PARTICIPANTES
+                            # ---------------------------------------------------
+                            if participantes:
+                                for participante in participantes:
+                                    p_nome = (
+                                        participante.get("nome")
+                                        if isinstance(participante, dict)
+                                        else participante
+                                    )
+                                    if p_nome:
+                                        p_id = entity_repository.obter_ou_criar(
+                                            PESSOA, p_nome
                                         )
+                                        tipo_relacao = (
+                                            resolver_relacao_evento(
+                                                evento.get(
+                                                    "tipo_evento"
+                                                )
+                                            )
+                                        )
+                                        relationship_repository.criar_relacao(
+                                            p_id,
+                                            entidade_orgao_id,
+                                            tipo_relacao,
+                                            diario_id=diario_id,
+                                            data_publicacao=data_publicacao,
+                                            evento_id=evento_id,
+                                        )
+                            # ---------------------------------------------------
+                            # Relação singular (agente) – mantida para compatibilidade
+                            # ---------------------------------------------------
+                            if agente_nome:
+                                entidade_pessoa_id = (
+                                    entity_repository.obter_ou_criar(
+                                        PESSOA, agente_nome
                                     )
                                 )
-
+                                evento_repository.relacionar_entidade(
+                                    evento_id,
+                                    entidade_pessoa_id,
+                                    AGENTE_PUBLICO,
+                                )
                                 relationship_repository.criar_relacao(
-
                                     entidade_pessoa_id,
                                     entidade_orgao_id,
-
-                                    tipo_relacao,
-
+                                    resolver_relacao_evento(evento.get("tipo_evento")),
                                     diario_id=diario_id,
-
-                                    data_publicacao=(
-                                        data_publicacao
-                                    ),
-
-                                    evento_id=evento_id
+                                    data_publicacao=data_publicacao,
+                                    evento_id=evento_id,
                                 )
-
                                 if _timeline_vinculo_valido(
                                     tipo_evento,
                                     entidade_pessoa_id,
