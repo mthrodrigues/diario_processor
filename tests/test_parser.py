@@ -337,6 +337,25 @@ def test_extrair_contrato_termo_cessao_uso():
 
     assert extrair_contrato(texto) == "010.000.2024"
 
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Contrato de comodato, passando a constar.",
+        "Contrato de Prestação de Serviço como servidor. Isento.",
+        "Contrato de Locação, com cópia de RG e CPF do Locador ou firma reconhecida.",
+        "Termo de Cessão de Uso de Imóvel do Município.",
+    ],
+)
+def test_extrair_contrato_ignora_falsos_positivos_alfabeticos(texto):
+    assert extrair_contrato(texto) is None
+
+def test_extrair_contrato_alfanumerico_iniciado_por_digito():
+    texto = """
+    Contrato de Locação nº 022.CL.05.2022
+    """
+
+    assert extrair_contrato(texto) == "022.CL.05.2022"
+
 def test_extrair_objeto_sem_dois_pontos():
     texto = """
     3º Termo de Apostilamento ao Contrato nº 020.06.2016

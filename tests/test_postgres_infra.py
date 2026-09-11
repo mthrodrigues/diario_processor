@@ -682,6 +682,58 @@ class PostgresInfraTest(unittest.TestCase):
             ("999.999.9999",),
         )
 
+    def test_repository_publicacao_contrato_reconcilia_vinculo_pendente(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.extend([
+            [
+                (10, "003.002.2026"),
+                (11, "999.999.9999"),
+            ],
+            [
+                (123, "003.002.2026"),
+            ],
+        ])
+
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        quantidade = repo.reconciliar_vinculos_pendentes()
+
+        self.assertEqual(quantidade, 1)
+        self.assertEqual(len(conn.executed), 3)
+
+        sql_pendentes, params_pendentes = conn.executed[0]
+        self.assertIn('"diario".publicacao_contratos', sql_pendentes)
+        self.assertIn("WHERE contrato_id IS NULL", sql_pendentes)
+        self.assertIsNone(params_pendentes)
+
+        sql_contratos, params_contratos = conn.executed[1]
+        self.assertIn('"diario".contratos', sql_contratos)
+        self.assertIn("contrato_normalizado", sql_contratos)
+        self.assertIsNone(params_contratos)
+
+        sql_update, params_update = conn.executed[2]
+        self.assertIn('UPDATE "diario".publicacao_contratos', sql_update)
+        self.assertIn("SET contrato_id = %s", sql_update)
+        self.assertEqual(params_update, (123, 10))
+
+    def test_repository_publicacao_contrato_nao_reconcilia_sem_match(self):
+        conn = FakeConnection()
+        conn.fetchall_queue.extend([
+            [
+                (10, "999.999.9999"),
+            ],
+            [
+                (123, "003.002.2026"),
+            ],
+        ])
+
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        quantidade = repo.reconciliar_vinculos_pendentes()
+
+        self.assertEqual(quantidade, 0)
+        self.assertEqual(len(conn.executed), 2)
+
     def test_repository_publicacao_contrato_substitui_registros(self):
         conn = FakeConnection()
         repo = PublicacaoContratoRepository(conn, schema="diario")

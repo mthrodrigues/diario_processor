@@ -29,6 +29,61 @@ class PublicacaoContratoRepository:
 
         return resultado[0] if resultado else None
 
+    def reconciliar_vinculos_pendentes(self):
+        with self.conn.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT id, contrato_texto
+                FROM {self.table}
+                WHERE contrato_id IS NULL
+                """
+            )
+            pendentes = cursor.fetchall()
+
+            if not pendentes:
+                return 0
+
+            cursor.execute(
+                f"""
+                SELECT id, contrato_normalizado
+                FROM {self.schema}.contratos
+                WHERE contrato_normalizado IS NOT NULL
+                """
+            )
+            contratos = cursor.fetchall()
+
+            mapa_contratos = {
+                contrato_normalizado: contrato_id
+                for contrato_id, contrato_normalizado in contratos
+            }
+
+            sql = f"""
+                UPDATE {self.table}
+                SET contrato_id = %s
+                WHERE id = %s
+            """
+
+            quantidade = 0
+
+            for publicacao_contrato_id, contrato_texto in pendentes:
+                contrato_normalizado = normalize_contrato(contrato_texto)
+
+                if not contrato_normalizado:
+                    continue
+
+                contrato_id = mapa_contratos.get(contrato_normalizado)
+
+                if contrato_id is None:
+                    continue
+
+                cursor.execute(
+                    sql,
+                    (contrato_id, publicacao_contrato_id),
+                )
+                quantidade += 1
+
+            return quantidade
+
     def substituir_registros(self, publicacao_id, registros):
         with self.conn.cursor() as cursor:
             cursor.execute(

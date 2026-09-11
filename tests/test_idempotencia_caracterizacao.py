@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from infra.db.repositories import publicacao_contrato_repository
 import main
 from infra.db.repositories.publicacao_repository import PublicacaoRepository
 
@@ -117,7 +118,10 @@ class IdempotenciaCaracterizacaoTest(TestCase):
             ],
         )
         self.assertTrue(
-            all("ON CONFLICT (pdf_hash, numero_bloco)" in sql for sql, _ in conn.executed)
+            all(
+                "ON CONFLICT (pdf_hash, numero_bloco)" in sql
+                for sql, _ in conn.executed
+            )
         )
 
     def test_ja_processado_identifica_arquivo_ja_gravado(self):
@@ -132,8 +136,12 @@ class IdempotenciaCaracterizacaoTest(TestCase):
         primeira_tentativa = PublicacaoRepository(conn, schema="diario")
         segunda_tentativa = PublicacaoRepository(conn, schema="diario")
 
-        self.assertFalse(primeira_tentativa.ja_processado(PUBLICACAO["arquivo_path"]))
-        self.assertFalse(segunda_tentativa.ja_processado(PUBLICACAO["arquivo_path"]))
+        self.assertFalse(
+            primeira_tentativa.ja_processado(PUBLICACAO["arquivo_path"])
+        )
+        self.assertFalse(
+            segunda_tentativa.ja_processado(PUBLICACAO["arquivo_path"])
+        )
 
         primeiro_id = primeira_tentativa.salvar_publicacao(**PUBLICACAO)
         segundo_id = segunda_tentativa.salvar_publicacao(**PUBLICACAO)
@@ -146,7 +154,11 @@ class IdempotenciaCaracterizacaoTest(TestCase):
         repository = Mock()
 
         with self._main_isolado(conn, repository):
-            with patch.object(main, "listar_pdfs", return_value=[Path("diario_3279.pdf")]), patch.object(
+            with patch.object(
+                main,
+                "listar_pdfs",
+                return_value=[Path("diario_3279.pdf")],
+            ), patch.object(
                 main,
                 "extrair_diario_id",
                 return_value=3279,
@@ -164,7 +176,11 @@ class IdempotenciaCaracterizacaoTest(TestCase):
         repository = Mock()
 
         with self._main_isolado(conn, repository):
-            with patch.object(main, "listar_pdfs", return_value=[Path("diario_3279.pdf")]), patch.object(
+            with patch.object(
+                main,
+                "listar_pdfs",
+                return_value=[Path("diario_3279.pdf")],
+            ), patch.object(
                 main,
                 "extrair_diario_id",
                 return_value=3279,
@@ -182,7 +198,11 @@ class IdempotenciaCaracterizacaoTest(TestCase):
         repository = Mock()
 
         with self._main_isolado(conn, repository):
-            with patch.object(main, "listar_pdfs", return_value=[Path("diario_3279.pdf")]), patch.object(
+            with patch.object(
+                main,
+                "listar_pdfs",
+                return_value=[Path("diario_3279.pdf")],
+            ), patch.object(
                 main,
                 "extrair_diario_id",
                 return_value=3279,
@@ -201,27 +221,50 @@ class IdempotenciaCaracterizacaoTest(TestCase):
         def postgres_connection_falsa():
             yield conn
 
-        with patch.object(main, "postgres_connection", postgres_connection_falsa), patch.object(
+        with patch.object(
             main,
-            "PublicacaoRepository",
+            "postgres_connection",
+            postgres_connection_falsa,
+        ), patch.object(
+            main,
+            "PublicacaoContratoRepository",
             return_value=repository,
-        ), patch.object(main, "PotRepository"), patch.object(
+        ), patch.object(
+            main,
+            "PotRepository",
+        ), patch.object(
             main,
             "EventoRepository",
-        ), patch.object(main, "EntityRepository"), patch.object(
+        ), patch.object(
+            main,
+            "EntityRepository",
+        ), patch.object(
             main,
             "EntityRelationshipRepository",
-        ), patch.object(main, "TimelineReconciler"), patch.object(
+        ), patch.object(
+            main,
+            "TimelineReconciler",
+        ), patch.object(
             main,
             "InstitutionalEventOutboxRepository",
-        ), patch.object(main, "setup_logging", return_value=Mock()), patch.object(
+        ), patch.object(
+            main,
+            "setup_logging",
+            return_value=Mock(),
+        ), patch.object(
             main,
             "novo_run_id",
             return_value="teste",
-        ), patch.object(main, "log_erro"), patch.object(
+        ), patch.object(
+            main,
+            "log_erro",
+        ), patch.object(
             main,
             "log_sucesso",
-        ), patch.object(main, "consolidar_postgres"), patch.object(
+        ), patch.object(
+            main,
+            "consolidar_postgres",
+        ), patch.object(
             main,
             "consolidar_contratos_postgres",
         ):

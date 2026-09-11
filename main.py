@@ -767,6 +767,25 @@ def run():
             )
             raise
 
+        try:
+            quantidade_vinculos = (
+                publicacao_contrato_repository.reconciliar_vinculos_pendentes()
+            )
+            conn.commit()
+            print(
+                "Reconciliação de contratos concluída: "
+                f"{quantidade_vinculos} vínculo(s) atualizado(s)."
+            )
+        except Exception as e:
+            conn.rollback()
+            log_erro(
+                logger,
+                run_id,
+                str(e),
+                etapa="reconciliacao_publicacao_contratos",
+            )
+            raise
+
         duracao_total = time.time() - inicio_total
         minutos = int(duracao_total // 60)
         segundos = duracao_total % 60
