@@ -45,6 +45,59 @@ class ProcessorBlocoTest(unittest.TestCase):
         self.assertIsNone(metadados["vigencia"])
         self.assertIsNone(metadados["objeto"])
 
+    def test_corrigenda_usa_fornecedor_do_leia_se(self):
+        texto = (
+            "CORRIGENDA DA PUBLICAÇÃO DE 02 DE FEVEREIRO DE 2026\n"
+            'Onde se lê: ""Contrato n° 007.01.2022 '
+            "(Prestação de serviço de gerenciamento da manutenção preventiva e "
+            "corretiva de veículos leves, semi leves, pesados, semi pesados e "
+            "das máquinas de terraplanagem). Contratante: O Fundo Municipal "
+            "de Saúde de Teresópolis. Contratada: Prime Consultoria e "
+            "Assessoria Empresarial. - Objeto: Fica prorrogado por mais "
+            '12 (doze) meses.""\n'
+            'Leia-se: ""Contrato n° 007.01.2022 '
+            "(Prestação de serviço de gerenciamento da manutenção preventiva e "
+            "corretiva de veículos leves, semi leves, pesados, semi pesados e "
+            "das máquinas de terraplanagem). Contratante: O Fundo Municipal "
+            "de Saúde de Teresópolis. Contratada: Hospital em Casa Produtos "
+            "Médicos Ltda. - Objeto: Fica prorrogado por mais 12 (doze) "
+            'meses.""'
+        )
+
+        metadados = extrair_metadados_bloco(texto)
+
+        self.assertEqual(metadados["tipo"], "corrigenda")
+        self.assertEqual(
+            metadados["fornecedor"],
+            "Hospital em Casa Produtos Médicos Ltda",
+        )
+        self.assertEqual(
+            metadados["fornecedor_normalizado"],
+            "HOSPITAL EM CASA PRODUTOS MEDICOS",
+        )
+
+    def test_corrigenda_com_uma_contratada_extrai_fornecedor(self):
+        texto = (
+            "CORRIGENDA DA PUBLICAÇÃO\n"
+            "Contrato n° 021.009.2026. "
+            "Contratante: O Município de Teresópolis. "
+            "Contratada: Enge Prat Engenharia e Serviços Ltda. "
+            "Objeto: Prestação de serviços. "
+            "Onde se lê: Contrato n° 021.009.2026. "
+            "Leia-se: Contrato n° 021.009.2026."
+        )
+
+        metadados = extrair_metadados_bloco(texto)
+
+        self.assertEqual(metadados["tipo"], "corrigenda")
+        self.assertEqual(
+            metadados["fornecedor"],
+            "Enge Prat Engenharia e Serviços Ltda",
+        )
+        self.assertEqual(
+            metadados["fornecedor_normalizado"],
+            "ENGE PRAT ENGENHARIA E SERVICOS",
+        )
 
 if __name__ == "__main__":
     unittest.main()

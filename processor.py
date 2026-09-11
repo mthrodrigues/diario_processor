@@ -1,3 +1,5 @@
+import re
+
 from classifier import deve_enriquecer_contratual
 
 from normalizer import (
@@ -36,6 +38,34 @@ def _termo_tem_estrutura_contratual(texto_bloco):
         and pos_contratada < pos_objeto
     )
 
+def _corrigenda_tem_estrutura_contratual(texto_bloco):
+    texto_upper = texto_bloco.upper()
+
+    pos_contratante = texto_upper.find("CONTRATANTE:")
+    pos_contratada = texto_upper.find("CONTRATADA:")
+    pos_objeto = texto_upper.find("OBJETO:")
+
+    return (
+        pos_contratante >= 0
+        and pos_contratada >= 0
+        and pos_objeto >= 0
+        and pos_contratante < pos_objeto
+        and pos_contratada < pos_objeto
+    )
+
+
+def _extrair_fornecedor_corrigenda(texto_bloco):
+    marcador = re.search(r"\bLEIA-SE\s*:", texto_bloco, flags=re.IGNORECASE)
+
+    if marcador:
+        trecho_corrigido = texto_bloco[marcador.end():]
+
+        fornecedor = extrair_fornecedor(trecho_corrigido)
+
+        if fornecedor:
+            return fornecedor
+
+    return extrair_fornecedor(texto_bloco)
 
 def extrair_metadados_bloco(texto_bloco):
     tipo = identificar_tipo(texto_bloco)
@@ -79,5 +109,15 @@ def extrair_metadados_bloco(texto_bloco):
                 "objeto": extrair_objeto(texto_bloco),
             }
         )
+
+    if (
+        tipo == "corrigenda"
+        and _corrigenda_tem_estrutura_contratual(texto_bloco)
+        and metadados["fornecedor"] is None
+    ):
+        fornecedor = _extrair_fornecedor_corrigenda(texto_bloco)
+
+        metadados["fornecedor"] = fornecedor
+        metadados["fornecedor_normalizado"] = normalize_fornecedor(fornecedor)
 
     return metadados
