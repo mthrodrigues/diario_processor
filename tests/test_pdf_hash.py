@@ -311,6 +311,7 @@ class PdfHashTest(TestCase):
         pdf_aberto.__enter__.return_value = pdf_aberto
         evento_repository = Mock()
         timeline_reconciler = Mock()
+        publicacao_contrato_repository = Mock()
 
         with patch.object(main, "postgres_connection", postgres_connection_falsa), patch.object(
             main,
@@ -319,6 +320,9 @@ class PdfHashTest(TestCase):
         ), patch.object(
             main,
             "PublicacaoProcessoRepository",
+        ), patch.object(
+            main,
+            "PublicacaoContratoRepository",
         ), patch.object(main, "PotRepository"), patch.object(
             main,
             "EventoRepository",

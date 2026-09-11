@@ -14,6 +14,10 @@ from consolidador_processos import (
     obter_ou_criar_processo,
 )
 
+from infra.db.repositories.publicacao_contrato_repository import (
+    PublicacaoContratoRepository,
+)
+
 class FakeCursor:
     def __init__(self, conn):
         self.conn = conn
@@ -626,6 +630,201 @@ class PostgresInfraTest(unittest.TestCase):
             '"diario".publicacao_processos',
             sql_select,
         )
+
+    def test_repository_publicacao_contrato_obter_id_existente(self):
+        conn = FakeConnection()
+        conn.fetchone_queue.append((123,))
+
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        contrato_id = repo.obter_contrato_id("003.002.2026")
+
+        self.assertEqual(contrato_id, 123)
+        self.assertEqual(len(conn.executed), 1)
+
+        sql, params = conn.executed[0]
+
+        self.assertIn(
+            'SELECT id',
+            sql,
+        )
+        self.assertIn(
+            '"diario".contratos',
+            sql,
+        )
+        self.assertIn(
+            'WHERE contrato_normalizado = %s',
+            sql,
+        )
+        self.assertEqual(
+            params,
+            ("003.002.2026",),
+        )
+
+    def test_repository_publicacao_contrato_obter_id_retorna_none(self):
+        conn = FakeConnection()
+
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        contrato_id = repo.obter_contrato_id("999.999.9999")
+
+        self.assertIsNone(contrato_id)
+        self.assertEqual(len(conn.executed), 1)
+
+        sql, params = conn.executed[0]
+
+        self.assertIn(
+            '"diario".contratos',
+            sql,
+        )
+        self.assertEqual(
+            params,
+            ("999.999.9999",),
+        )
+
+    def test_repository_publicacao_contrato_substitui_registros(self):
+        conn = FakeConnection()
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        registros = [
+            {
+                "contrato_id": 123,
+                "contrato_texto": "003.002.2026",
+                "tipo_instrumento": "contrato",
+                "contexto_documental": "principal",
+                "evidencia_textual": "Contrato n° 003.002.2026",
+                "ordem_no_texto": 1,
+            },
+            {
+                "contrato_id": 456,
+                "contrato_texto": "023.012.2023",
+                "tipo_instrumento": "contrato",
+                "contexto_documental": "termo_rescisao",
+                "evidencia_textual": (
+                    "Contrato nº 023.012.2023"
+                ),
+                "ordem_no_texto": 2,
+            },
+        ]
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=1538,
+            registros=registros,
+        )
+
+        self.assertEqual(quantidade, 2)
+        self.assertEqual(len(conn.executed), 3)
+
+        sql_delete, params_delete = conn.executed[0]
+
+        self.assertIn(
+            'DELETE FROM "diario".publicacao_contratos',
+            sql_delete,
+        )
+        self.assertEqual(params_delete, (1538,))
+
+        sql_insert_1, params_1 = conn.executed[1]
+        sql_insert_2, params_2 = conn.executed[2]
+
+        self.assertIn(
+            '"diario".publicacao_contratos',
+            sql_insert_1,
+        )
+        self.assertIn(
+            '"diario".publicacao_contratos',
+            sql_insert_2,
+        )
+
+        self.assertEqual(
+            params_1,
+            (
+                1538,
+                123,
+                "003.002.2026",
+                "contrato",
+                "principal",
+                "Contrato n° 003.002.2026",
+                1,
+            ),
+        )
+
+        self.assertEqual(
+            params_2,
+            (
+                1538,
+                456,
+                "023.012.2023",
+                "contrato",
+                "termo_rescisao",
+                "Contrato nº 023.012.2023",
+                2,
+            ),
+        )
+
+    def test_repository_publicacao_contrato_aceita_contrato_nao_reconciliado(
+        self,
+    ):
+        conn = FakeConnection()
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        registros = [
+            {
+                "contrato_id": None,
+                "contrato_texto": "909277/2Q2Q/MDR/CA1XA",
+                "tipo_instrumento": "contrato",
+                "contexto_documental": "principal",
+                "evidencia_textual": (
+                    "Contrato nº 909277/2Q2Q/MDR/CA1XA"
+                ),
+                "ordem_no_texto": 1,
+            },
+        ]
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=2000,
+            registros=registros,
+        )
+
+        self.assertEqual(quantidade, 1)
+
+        sql_insert, params = conn.executed[1]
+
+        self.assertIn(
+            '"diario".publicacao_contratos',
+            sql_insert,
+        )
+        self.assertEqual(
+            params,
+            (
+                2000,
+                None,
+                "909277/2Q2Q/MDR/CA1XA",
+                "contrato",
+                "principal",
+                "Contrato nº 909277/2Q2Q/MDR/CA1XA",
+                1,
+            ),
+        )
+
+    def test_repository_publicacao_contrato_lista_vazia(self):
+        conn = FakeConnection()
+        repo = PublicacaoContratoRepository(conn, schema="diario")
+
+        quantidade = repo.substituir_registros(
+            publicacao_id=1538,
+            registros=[],
+        )
+
+        self.assertEqual(quantidade, 0)
+        self.assertEqual(len(conn.executed), 1)
+
+        sql, params = conn.executed[0]
+
+        self.assertIn(
+            'DELETE FROM "diario".publicacao_contratos',
+            sql,
+        )
+        self.assertEqual(params, (1538,))
 
 if __name__ == "__main__":
     unittest.main()

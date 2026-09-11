@@ -34,6 +34,7 @@ from parser import (
     serializar_bloco_paginado,
     serializar_texto_paginado,
     extrair_processos,
+    preparar_referencias_contratos,
 )
 from processor import extrair_metadados_bloco
 
@@ -65,6 +66,10 @@ from infra.db.repositories.entity_relationship_repository import (
 
 from infra.db.repositories.institutional_event_outbox_repository import (
     InstitutionalEventOutboxRepository
+)
+
+from infra.db.repositories.publicacao_contrato_repository import (
+    PublicacaoContratoRepository
 )
 
 from events import extrair_eventos_bloco
@@ -122,6 +127,7 @@ def run():
         repository = PublicacaoRepository(conn)
         pot_repository = PotRepository(conn)
         publicacao_processo_repository = PublicacaoProcessoRepository(conn)
+        publicacao_contrato_repository = PublicacaoContratoRepository(conn)
 
         evento_repository = EventoRepository(conn)
 
@@ -342,6 +348,35 @@ def run():
                         data_publicacao=data_publicacao,
                         contrato_normalizado=metadados["contrato_normalizado"],
                         pdf_hash=pdf_hash,
+                    )
+
+                    # =========================================
+                    # CONTRATOS NA PUBLICAÇÃO
+                    # =========================================
+
+                    etapa_atual = "extrair_referencias_contratos"
+
+                    referencias_contratos = preparar_referencias_contratos(bloco)
+
+                    registros_contratos = []
+
+                    for referencia in referencias_contratos:
+                        contrato_id = publicacao_contrato_repository.obter_contrato_id(
+                            referencia["contrato_texto"]
+                        )
+
+                        registros_contratos.append(
+                            {
+                                **referencia,
+                                "contrato_id": contrato_id,
+                            }
+                        )
+
+                    etapa_atual = "salvar_contratos"
+
+                    publicacao_contrato_repository.substituir_registros(
+                        publicacao_id,
+                        registros_contratos,
                     )
 
                     # =========================================

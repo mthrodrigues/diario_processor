@@ -892,6 +892,132 @@ def extrair_contrato(texto):
 
     return None
 
+def extrair_referencias_contratos(texto):
+    """
+    Extrai todas as referências a contratos presentes no texto.
+
+    Retorna as ocorrências na ordem em que aparecem no texto.
+    """
+    if not texto:
+        return []
+
+    numero_contrato = r'([0-9][0-9A-Za-z./-]*)'
+
+    padroes = [
+        (
+            rf'\bCONTRATO'
+            rf'(?:\s+ADMINISTRATIVO|\s+DE\s+LOCAÇÃO)?'
+            rf'\s*N(?:[°ºO.]|\b)\s*'
+            rf'{numero_contrato}'
+        ),
+        (
+            rf'\bCONTRATO'
+            rf'\s*\n\s*'
+            rf'(?!N[°ºO.]\s*)'
+            rf'{numero_contrato}'
+        ),
+    ]
+
+    ocorrencias = []
+
+    for padrao in padroes:
+        for match in re.finditer(
+            padrao,
+            texto,
+            flags=re.IGNORECASE,
+        ):
+            contrato = match.group(1).rstrip(".,;:")
+
+            fim_evidencia = match.start(1) + len(contrato)
+
+            ocorrencias.append({
+                "contrato_texto": contrato,
+                "evidencia_textual": texto[match.start():fim_evidencia],
+                "_inicio": match.start(),
+            })
+
+    ocorrencias.sort(key=lambda item: item["_inicio"])
+
+    resultado = []
+    vistos = set()
+
+    for ocorrencia in ocorrencias:
+        chave = (
+            ocorrencia["contrato_texto"],
+            ocorrencia["_inicio"],
+            ocorrencia["evidencia_textual"],
+        )
+
+        if chave in vistos:
+            continue
+
+        vistos.add(chave)
+
+        resultado.append({
+            "contrato_texto": ocorrencia["contrato_texto"],
+            "evidencia_textual": ocorrencia["evidencia_textual"],
+            "ordem_no_texto": len(resultado) + 1,
+            "inicio_no_texto": ocorrencia["_inicio"],
+        })
+
+    return resultado
+
+def identificar_contexto_referencia_contrato(texto, inicio):
+    """
+    Identifica o contexto documental da referência ao contrato.
+
+    Retorna:
+        "corrigenda" quando a referência ocorre em contexto de correção;
+        "termo_rescisao" quando ocorre em contexto de rescisão;
+        "principal" nos demais casos.
+    """
+    if not texto:
+        return "principal"
+
+    contexto = texto[max(0, inicio - 250):inicio]
+
+    if re.search(
+        r'\b(?:Onde\s+se\s+l[êe]|Leia-se)\b',
+        contexto,
+        flags=re.IGNORECASE,
+    ):
+        return "corrigenda"
+
+    if re.search(
+        r'\bTermo\s+de\s+Rescis[aã]o(?:\s+Unilateral)?\b',
+        contexto,
+        flags=re.IGNORECASE,
+    ):
+        return "termo_rescisao"
+
+    return "principal"
+
+def preparar_referencias_contratos(texto):
+    """
+    Prepara as referências a contratos para persistência.
+
+    Retorna as ocorrências com os campos semânticos necessários
+    para a tabela publicacao_contratos.
+    """
+    referencias = extrair_referencias_contratos(texto)
+
+    resultado = []
+
+    for referencia in referencias:
+        contexto_documental = identificar_contexto_referencia_contrato(
+            texto,
+            referencia["inicio_no_texto"],
+        )
+
+        resultado.append({
+            "contrato_texto": referencia["contrato_texto"],
+            "tipo_instrumento": "contrato",
+            "contexto_documental": contexto_documental,
+            "evidencia_textual": referencia["evidencia_textual"],
+            "ordem_no_texto": referencia["ordem_no_texto"],
+        })
+
+    return resultado
 
 def extrair_cnpj(texto):
     """

@@ -6,6 +6,7 @@ from scanner import extrair_data_publicacao
 
 from parser import (
     extrair_processo,
+    identificar_contexto_referencia_contrato,
     identificar_tipo,
     extrair_contrato,
     extrair_fornecedor,
@@ -14,9 +15,11 @@ from parser import (
     extrair_valor_principal,
     extrair_objeto,
     extrair_vigencia,
+    preparar_referencias_contratos,
     sanear_texto_pdf,
     segmentar_publicacoes,
     extrair_processos,
+    extrair_referencias_contratos,
 )
 
 
@@ -1047,3 +1050,259 @@ def test_identifica_publicacao_com_tabela_nao_como_termo():
     """
 
     assert identificar_tipo(texto) != "termo"
+
+def test_extrair_referencias_contratos_simples():
+    texto = "Contrato n° 003.002.2026."
+
+    assert extrair_referencias_contratos(texto) == [
+        {
+            "contrato_texto": "003.002.2026",
+            "evidencia_textual": "Contrato n° 003.002.2026",
+            "ordem_no_texto": 1,
+            "inicio_no_texto": 0,
+        }
+    ]
+
+
+def test_extrair_referencias_contratos_multiplos():
+    texto = (
+        "Contrato n° 001.031.2026. "
+        "Contrato n° 001.014.2026. "
+        "Contrato n° 002.014.2026."
+    )
+
+    resultado = extrair_referencias_contratos(texto)
+
+    assert [item["contrato_texto"] for item in resultado] == [
+        "001.031.2026",
+        "001.014.2026",
+        "002.014.2026",
+    ]
+
+    assert [item["ordem_no_texto"] for item in resultado] == [1, 2, 3]
+
+
+def test_extrair_referencias_contratos_preserva_repeticoes():
+    texto = (
+        "Contrato n° 022.254/2015. "
+        "Contrato n° 022.254/2015."
+    )
+
+    resultado = extrair_referencias_contratos(texto)
+
+    assert [item["contrato_texto"] for item in resultado] == [
+        "022.254/2015",
+        "022.254/2015",
+    ]
+
+    assert [item["ordem_no_texto"] for item in resultado] == [1, 2]
+
+
+def test_extrair_referencias_contratos_aceita_quebra_de_linha():
+    texto = "1° Termo Aditivo ao Contrato\nn° 079.11.2021."
+
+    assert extrair_referencias_contratos(texto) == [
+        {
+            "contrato_texto": "079.11.2021",
+            "evidencia_textual": "Contrato\nn° 079.11.2021",
+            "ordem_no_texto": 1,
+            "inicio_no_texto": 20,
+        }
+    ]
+
+def test_extrair_referencias_contratos_preserva_posicao():
+    texto = (
+        "Contrato n° 003.002.2026. "
+        "Termo de Rescisão Unilateral ao Contrato nº 023.012.2023."
+    )
+
+    resultado = extrair_referencias_contratos(texto)
+
+    assert [item["contrato_texto"] for item in resultado] == [
+        "003.002.2026",
+        "023.012.2023",
+    ]
+
+    assert resultado[0]["inicio_no_texto"] == texto.index(
+        "Contrato n° 003.002.2026"
+    )
+
+    assert resultado[1]["inicio_no_texto"] == texto.index(
+        "Contrato nº 023.012.2023"
+    )
+
+def test_identificar_contexto_referencia_contrato_principal():
+    texto = "6° Termo Aditivo ao Contrato n° 079.11.2021"
+
+    inicio = texto.index("Contrato")
+
+    assert identificar_contexto_referencia_contrato(
+        texto,
+        inicio,
+    ) == "principal"
+
+
+def test_identificar_contexto_referencia_contrato_corrigenda():
+    texto = (
+        "Onde se lê: 3° Termo de Apostilamento ao "
+        "Contrato nº 002.012.2024."
+    )
+
+    inicio = texto.index("Contrato")
+
+    assert identificar_contexto_referencia_contrato(
+        texto,
+        inicio,
+    ) == "corrigenda"
+
+def test_identificar_contexto_referencia_contrato_termo_rescisao():
+    texto = (
+        "Termo de Rescisão Unilateral ao "
+        "Contrato nº 023.012.2023"
+    )
+
+    inicio = texto.index("Contrato")
+
+    assert identificar_contexto_referencia_contrato(
+        texto,
+        inicio,
+    ) == "termo_rescisao"
+
+def test_referencias_contratos_classifica_contextos():
+    texto = (
+        "Contrato n° 003.002.2026. "
+        "Termo de Rescisão Unilateral ao Contrato nº 023.012.2023."
+    )
+
+    referencias = extrair_referencias_contratos(texto)
+
+    resultado = [
+        {
+            **referencia,
+            "contexto_documental": identificar_contexto_referencia_contrato(
+                texto,
+                referencia["inicio_no_texto"],
+            ),
+        }
+        for referencia in referencias
+    ]
+
+    assert resultado == [
+        {
+            "contrato_texto": "003.002.2026",
+            "evidencia_textual": "Contrato n° 003.002.2026",
+            "ordem_no_texto": 1,
+            "inicio_no_texto": 0,
+            "contexto_documental": "principal",
+        },
+        {
+            "contrato_texto": "023.012.2023",
+            "evidencia_textual": "Contrato nº 023.012.2023",
+            "ordem_no_texto": 2,
+            "inicio_no_texto": 58,
+            "contexto_documental": "termo_rescisao",
+        },
+    ]
+
+def test_referencias_contratos_repeticao_mantem_contexto_rescisao():
+    texto = (
+        "Termo de Rescisão Unilateral ao Contrato n° 023.012.2023 "
+        "Contratante: O Município de Teresópolis através da Secretaria "
+        "Municipal de Saúde. Contratada: MPE Engenharia e Serviços S.A. "
+        "- Objeto: Rescisão unilateral do Contrato\n"
+        "023.012.2023, ajustado com a empresa MPE Engenharia e Serviços S.A."
+    )
+
+    resultado = preparar_referencias_contratos(texto)
+
+    assert [item["contrato_texto"] for item in resultado] == [
+        "023.012.2023",
+        "023.012.2023",
+    ]
+
+    assert [item["contexto_documental"] for item in resultado] == [
+        "termo_rescisao",
+        "termo_rescisao",
+    ]
+
+def test_preparar_referencias_contratos():
+    texto = (
+        "Contrato n° 003.002.2026. "
+        "Termo de Rescisão Unilateral ao Contrato nº 023.012.2023."
+    )
+
+    assert preparar_referencias_contratos(texto) == [
+        {
+            "contrato_texto": "003.002.2026",
+            "tipo_instrumento": "contrato",
+            "contexto_documental": "principal",
+            "evidencia_textual": "Contrato n° 003.002.2026",
+            "ordem_no_texto": 1,
+        },
+        {
+            "contrato_texto": "023.012.2023",
+            "tipo_instrumento": "contrato",
+            "contexto_documental": "termo_rescisao",
+            "evidencia_textual": "Contrato nº 023.012.2023",
+            "ordem_no_texto": 2,
+        },
+    ]
+
+def test_extrair_referencias_contratos_aceita_numero_na_linha_seguinte_sem_marcador():
+    texto = (
+        "Termo de Rescisão Unilateral ao Contrato n° 023.012.2023\n"
+        "Contratada: MPE Engenharia e Serviços S.A. - "
+        "Objeto: Rescisão unilateral do Contrato\n"
+        "023.012.2023, ajustado com a empresa MPE Engenharia e Serviços S.A."
+    )
+
+    resultado = extrair_referencias_contratos(texto)
+
+    assert [item["contrato_texto"] for item in resultado] == [
+        "023.012.2023",
+        "023.012.2023",
+    ]
+
+    assert [item["ordem_no_texto"] for item in resultado] == [1, 2]
+
+def test_extrair_referencias_contratos_ignora_falsos_positivos_textuais():
+    texto = """
+    Contrato na
+    Contrato no valor
+    contrato
+    administrativo
+    contrato
+    devem
+    contrato
+    passar
+    contrato
+    pelo
+    contrato
+    registrado
+    Contrato
+    registrato
+    Contrato
+    Social
+    contrato
+    tem
+    """
+
+    assert extrair_referencias_contratos(texto) == []
+
+
+def test_extrair_referencias_contratos_aceita_contrato_apos_quebra_de_linha():
+    texto = "Termo de Rescisão:\nContrato\n023.012.2023"
+
+    resultado = extrair_referencias_contratos(texto)
+
+    assert len(resultado) == 1
+    assert resultado[0]["contrato_texto"] == "023.012.2023"
+    assert resultado[0]["evidencia_textual"] == "Contrato\n023.012.2023"
+
+def test_extrair_referencias_contratos_aceita_contrato_com_numero():
+    texto = "Contrato nº 008.012.2024"
+
+    resultado = extrair_referencias_contratos(texto)
+
+    assert len(resultado) == 1
+    assert resultado[0]["contrato_texto"] == "008.012.2024"
