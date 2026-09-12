@@ -192,6 +192,12 @@ def extrair_servidores_designados(texto):
 
     for parte in partes:
         nome = re.sub(r"^(?:e|ou)\s+", "", parte, flags=re.IGNORECASE).strip(" ,.-")
+        nome = re.sub(
+            r"^(?:o servidor|a servidora|os servidores|as servidoras)\s+",
+            "",
+            nome,
+            flags=re.IGNORECASE,
+        ).strip()
         nome = re.sub(r"\s+", " ", nome)
         if len(nome.split()) < 2:
             continue

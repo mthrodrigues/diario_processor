@@ -1,5 +1,6 @@
-from events import extrair_agente_publico, extrair_eventos_bloco, extrair_participantes_evento, segmentar_sub_eventos, extrair_orgao, limpar_texto_institucional
+from events import extrair_agente_publico, extrair_eventos_bloco, extrair_participantes_evento, extrair_servidores_designados, segmentar_sub_eventos, extrair_orgao, limpar_texto_institucional
 from main import _timeline_vinculo_valido
+from taxonomy.entity_taxonomy import PESSOA
 from taxonomy.event_taxonomy import (
     DESIGNACAO_FISCAL,
     CONTRATACAO,
@@ -736,3 +737,24 @@ def test_extrair_agente_publico_aceita_apostrofo_no_nome():
         extrair_agente_publico(texto)
         == "CLÁUDIO JOSÉ SANT'ANA"
     )
+
+def test_extrair_servidores_designados_remove_prefixo_humano_dos_participantes():
+    texto = """
+    PORTARIA GP Nº 136/2026 – NOMEAR, a servidora FABIANA CANTO GRANGEIRO,
+    matrícula nº 4.20349-4 e o servidor OSINEI DE OLIVEIRA, matrícula nº 1.11521-9,
+    como responsáveis pelo acompanhamento e fiscalização do Contrato nº 012.008.2025
+    e seus respectivos aditivos e apostilamentos.
+    """
+
+    participantes = extrair_servidores_designados(texto)
+
+    assert participantes == [
+        {
+            "tipo": PESSOA,
+            "nome": "FABIANA CANTO GRANGEIRO",
+        },
+        {
+            "tipo": PESSOA,
+            "nome": "OSINEI DE OLIVEIRA",
+        },
+    ]
