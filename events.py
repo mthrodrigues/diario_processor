@@ -25,8 +25,8 @@ from taxonomy.event_taxonomy import (
 def extrair_nome(texto):
 
     padroes = [
-        r"NOMEAR\s+([A-ZÀ-Ú\s]+)",
-        r"EXONERAR\s+([A-ZÀ-Ú\s]+)",
+        r"NOMEAR\s+([A-ZÀ-Ú\s']+)",
+        r"EXONERAR\s+([A-ZÀ-Ú\s']+)",
     ]
 
     for padrao in padroes:
@@ -78,15 +78,15 @@ def extrair_agente_publico(texto):
 
     padroes = [
 
-        r"NOMEAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+para",
+        r"NOMEAR(?:\s*,?\s*nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s+para",
 
-        r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s]+?)\s+do\s+Cargo",
+        r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s']+?)\s+do\s+Cargo",
 
-        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*matr[ií]cula",
+        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s*matr[ií]cula",
 
-        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para exercer",
+        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s*para exercer",
 
-        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s]+?)\s*,?\s*para integrar",
+        r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s*para integrar",
 
     ]
 
@@ -120,7 +120,7 @@ def extrair_agente_publico(texto):
             if len(nome.split()) < 2:
                 continue
 
-            if "LEI" in nome.upper():
+            if re.search(r"\bLEI\b", nome, flags=re.IGNORECASE):
                 continue
 
             if "COMPLEMENTAR" in nome.upper():
@@ -349,9 +349,9 @@ def extrair_orgao(texto):
 
         r"firmado entre o Município de Teresópolis através da\s+(Procuradoria Geral do Município)",
 
-        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
+        r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
 
-        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
+        r"através do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
 
         r"firmado entre a\s+(Secretaria de Obras e Serviços Públicos)",
 
@@ -371,13 +371,13 @@ def extrair_orgao(texto):
         # Padrões existentes
         # ================================================
 
-        r"(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
+        r"(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
-        r"na\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
+        r"na\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
 
-        r"\bo\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=\s+e\s+(?:(?-i:[ao])\s+)?(?-i:[A-ZÀ-Ú])|\s*,|\s+cujo objeto|\s+que tem por objeto|\s+com efeitos|\s+a partir|$)",
+        r"\bo\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=\s+e\s+(?:(?-i:[ao])\s+)?(?-i:[A-ZÀ-Ú])|\s*,|\s+cujo objeto|\s+que tem por objeto|\s+com efeitos|\s+a partir|$)",
 
-        r"do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s]+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
+        r"do\s+(Fundo Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=,|\.| com efeitos| a partir| e o | e a | através | firmado | celebrado |$)",
     ]
 
     for padrao in padroes:

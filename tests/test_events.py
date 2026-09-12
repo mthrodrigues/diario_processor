@@ -677,3 +677,62 @@ de Fiscalização de Meio Ambiente."""
     assert "RAPHAEL PINTO DE CARVALHO REBELLO" in [n.upper() for n in nomes]
 
     assert all(not n.endswith((" 7", " 9")) for n in nomes)
+
+def test_extrair_agente_publico_aceita_virgula_apos_nomear():
+    texto = """
+    PORTARIA GP Nº 329/2026 – NOMEAR, nos termos do art. 9º da Lei
+    Complementar Municipal nº 167/2013 (ESTATUTO), c/c a Lei Municipal nº
+    1.441/1993 e alterações posteriores, MARIA EDUARDA LEOPOLDO DUARTE,
+    para exercer o Cargo em Comissão de Chefe da Divisão de Marcação de
+    Exames, Símbolo DAS-3, Cód. 40628, na Secretaria Municipal de Saúde.
+    """
+
+    assert (
+        extrair_agente_publico(texto)
+        == "MARIA EDUARDA LEOPOLDO DUARTE"
+    )
+
+
+def test_extrair_agente_publico_aceita_virgula_antes_de_para():
+    texto = """
+    PORTARIA GP Nº 329/2026 – NOMEAR nos termos do art. 9º da Lei
+    Complementar Municipal nº 167/2013 (ESTATUTO), c/c a Lei Municipal nº
+    1.441/1993 e alterações posteriores, MARIA EDUARDA LEOPOLDO DUARTE,
+    para exercer o Cargo em Comissão de Chefe da Divisão de Marcação de
+    Exames, Símbolo DAS-3, Cód. 40628, na Secretaria Municipal de Saúde.
+    """
+
+    assert (
+        extrair_agente_publico(texto)
+        == "MARIA EDUARDA LEOPOLDO DUARTE"
+    )
+
+
+def test_extrair_agente_publico_nao_descarta_nome_contendo_lei():
+    texto = """
+    PORTARIA GP Nº 480/2026 – NOMEAR nos termos do art. 9º da Lei
+    Complementar Municipal nº 167/2013 (ESTATUTO), c/c a Lei Municipal nº
+    1.441/1993 e alterações posteriores, CLEITON EVANDRO CORREA PIMENTEL,
+    matrícula nº 4.20303-0, para exercer o Cargo em Comissão de Agente de
+    Defesa Civil, Símbolo DAS-1, Cód. 40276.
+    """
+
+    assert (
+        extrair_agente_publico(texto)
+        == "CLEITON EVANDRO CORREA PIMENTEL"
+    )
+
+
+def test_extrair_agente_publico_aceita_apostrofo_no_nome():
+    texto = """
+    PORTARIA GP Nº 768/2026 – NOMEAR nos termos do art. 9º da Lei
+    Complementar Municipal nº 167/2013 (ESTATUTO), c/c a Lei Municipal nº
+    1.441/1993 e alterações posteriores, CLÁUDIO JOSÉ SANT'ANA, para
+    exercer o Cargo em Comissão de Assessor Administrativo, Símbolo DAS-3,
+    Cód. 40711, na Procuradoria Geral.
+    """
+
+    assert (
+        extrair_agente_publico(texto)
+        == "CLÁUDIO JOSÉ SANT'ANA"
+    )
