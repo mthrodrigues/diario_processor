@@ -252,10 +252,13 @@ def extrair_cargo(texto):
     padroes = [
 
         # Cargo em comissão
-        r"Cargo em Comissão de\s+(.+?)(?=,\s*Símbolo|,\s*lotad|,\s*com efeitos|\.|,|$)",
+        r"Cargo\s+em\s+Comissão(?:\s*,\s*interino\s*,)?\s+de\s+(.+?)(?=,\s*Símbolo|,\s*lotad|,\s*com efeitos|\.|,|$)",
 
         # Cargo comum
         r"cargo\s+de\s+(.+?)(?=,\s*lotad|,\s*com efeitos|\.|,|$)",
+
+        # Cargo seguido de "lotado"
+        r"do\s+Cargo\s+(.+?)(?=,\s*lotad[oa]\b|,\s*com\s+efeitos\b|\.|$)",
 
         # Função
         r"função\s+de\s+(.+?)(?=,\s*lotad|,\s*com efeitos|\.|,|$)",

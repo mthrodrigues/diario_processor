@@ -772,3 +772,136 @@ def test_extrair_agente_publico_exoneracao_aceita_virgula_antes_de_do_cargo():
         extrair_agente_publico(texto)
         == "FABIANO THOMAZ CARRIONE"
     )
+
+def test_exoneracao_extrai_cargo_com_quebra_de_linha_e_interino():
+    casos = [
+        (
+            """
+            PORTARIA GP Nº 434/2026 –
+            EXONERAR, nos termos do art. 38 da Lei Complementar Municipal nº 167/2013
+            (ESTATUTO), JOSÉ CARLOS FITA NOGUEIRA, matrícula nº 4.70001-8, do Cargo em
+            Comissão de Secretário Municipal de Limpeza Pública, Símbolo DAS-6, a partir de
+            09/04/2026 (Memorando nº 7.556/2026).
+            """,
+            "Secretário Municipal de Limpeza Pública",
+        ),
+        (
+            """
+            PORTARIA GP Nº 119/2026 –
+            EXONERAR, nos termos do art. 38 da Lei Complementar Municipal nº 167/2013
+            (ESTATUTO), DAVI RIBEIRO SERAFIM, matrícula nº 1.07728-0, do Cargo em
+            Comissão, interino, de Secretário Municipal de Obras e Serviços Públicos,
+            Símbolo DAS-6, Cód. 40737, com efeitos a partir de 05/01/2026
+            (Memorando nº 362/2026).
+            """,
+            "Secretário Municipal de Obras e Serviços Públicos",
+        ),
+    ]
+
+    for texto, cargo_esperado in casos:
+        eventos = extrair_eventos_bloco(
+            {"tipo": "portaria"},
+            texto,
+            diario_id=1,
+            numero_bloco=1,
+        )
+
+        evento = next(
+            e for e in eventos
+            if e["tipo_evento"] == EXONERACAO
+        )
+
+        assert evento["cargo"] == cargo_esperado
+
+def test_exoneracao_extrai_cargo_sem_preposicao_de():
+    casos = [
+        (
+            """
+            PORTARIA GP Nº 272/2026 –
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), KATIA REGINA DE AQUINO PAZ, matrícula nº 1.11919-2, do
+            Cargo Professor I, lotado na Secretaria Municipal de Educação, com efeitos a partir de
+            01/02/2026 (Protocolo nº 3.681/2026).
+            """,
+            "Professor I",
+        ),
+        (
+            """
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), CARLOS JOSE BAUER DA SILVA, matrícula nº 1.19497-2,
+            do Cargo Professor I, lotado na Secretaria Municipal de Educação, com efeitos a
+            partir de 02/02/2026.
+            """,
+            "Professor I",
+        ),
+        (
+            """
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), DEBORA DA PAZ GOMES BRANDÃO FERRAZ, matrícula nº
+            1.20175-9, do Cargo Professor I, lotado na Secretaria Municipal de Educação,
+            com efeitos a partir de 23/02/2026.
+            """,
+            "Professor I",
+        ),
+        (
+            """
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), ELIANE BASTOS SALOMÃO, matrícula nº 1.19331-6, do
+            Cargo Professor I, lotada na Secretaria Municipal de Educação, com efeitos a
+            partir de 01/06/2026.
+            """,
+            "Professor I",
+        ),
+        (
+            """
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), CAROLINA ALVES GOMES DE OLIVEIRA, matrícula nº
+            1.20172-1, do Cargo Professor I, lotada na Secretaria Municipal de Educação,
+            com efeitos a partir de 03/08/2026.
+            """,
+            "Professor I",
+        ),
+        (
+            """
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), BRUNA CORREA DA SILVA, matrícula nº 1.13233-4, do
+            Cargo GOS III Auxiliar de Saúde Bucal, lotada na Secretaria Municipal de Saúde,
+            com efeitos a partir de 03/08/2026.
+            """,
+            "GOS III Auxiliar de Saúde Bucal",
+        ),
+        (
+            """
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), FLAVIA MACÊDO DA SILVA, matrícula nº 1.20173-8, do
+            Cargo Professor I, lotada na Secretaria Municipal de Educação, com efeitos a
+            partir de 26/08/2026.
+            """,
+            "Professor I",
+        ),
+        (
+            """
+            PORTARIA GP Nº 775, DE 10 DE SETEMBRO DE 2026.
+            DISPÕE SOBRE EXONERAÇÃO DE CARGO EFETIVO.
+            O PREFEITO MUNICIPAL DE TERESÓPOLIS, usando das atribuições que lhe confere
+            a legislação em vigor, RESOLVE:
+            EXONERAR, a pedido, nos termos do art. 37 da Lei Complementar Municipal nº
+            167/2013 (ESTATUTO), THIAGO SANTOS DE ARAUJO, matrícula nº 1.19349-4, do
+            Cargo Professor I, lotado na Secretaria Municipal de Educação, com efeitos a
+            partir de 25/08/2026.
+            """,
+            "Professor I",
+        ),
+    ]
+
+    for texto, cargo_esperado in casos:
+        eventos = extrair_eventos_bloco(
+            {"tipo": "portaria"},
+            texto,
+            diario_id=1,
+            numero_bloco=1,
+        )
+        evento = next(
+            e for e in eventos if e["tipo_evento"] == EXONERACAO
+        )
+        assert evento["cargo"] == cargo_esperado
