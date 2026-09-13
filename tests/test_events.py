@@ -758,3 +758,17 @@ def test_extrair_servidores_designados_remove_prefixo_humano_dos_participantes()
             "nome": "OSINEI DE OLIVEIRA",
         },
     ]
+
+def test_extrair_agente_publico_exoneracao_aceita_virgula_antes_de_do_cargo():
+    texto = """
+    PORTARIA GP Nº 483/2026 – EXONERAR, nos termos do art. 38 da Lei
+    Complementar Municipal nº 167/2013 (ESTATUTO), FABIANO THOMAZ CARRIONE, do
+    Cargo em Comissão de Secretário de Conselho de Recursos Fiscais, Símbolo DAS-1,
+    Cód. 40110, da Secretaria Municipal de Finanças e Orçamento, a partir de 01/05/2026
+    (Memorando SMGC nº 05/2026).
+    """
+
+    assert (
+        extrair_agente_publico(texto)
+        == "FABIANO THOMAZ CARRIONE"
+    )

@@ -620,6 +620,12 @@ def run():
 
                         orgao_nome = evento.get("orgao")
 
+                        if not orgao_nome:
+                            entidade_origem = evento.get("entidade_origem") or {}
+
+                            if entidade_origem.get("tipo") == ORGAO_PUBLICO:
+                                orgao_nome = entidade_origem.get("nome")
+
                         if orgao_nome:
 
                             entidade_id = (

@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, Mock, patch
 import main
 from scanner import calcular_pdf_hash
 
+from taxonomy.entity_taxonomy import (
+    FORNECEDOR,
+    ORGAO_CONTRATANTE,
+)
 
 METADADOS = {
     "tipo": "aviso",
@@ -525,3 +529,110 @@ class PdfHashTest(TestCase):
             return_value=pdf_aberto,
         ):
             yield evento_repository
+
+    def test_contratacao_persiste_orgao_contratante_e_fornecedor(self):
+        conn = ConexaoTransacional()
+
+        publicacao_repository = Mock()
+        publicacao_repository.salvar_publicacao.return_value = 100
+
+        entity_repository = Mock()
+        entity_repository.obter_ou_criar.side_effect = lambda tipo, _nome: {
+            "ORGAO_PUBLICO": 20,
+            "EMPRESA": 30,
+        }[tipo]
+
+        evento = {
+            "tipo_evento": "CONTRATACAO",
+            "agente": {},
+            "participantes": [],
+            "entidade_origem": {
+                "tipo": "ORGAO_PUBLICO",
+                "nome": "FUNDO MUNICIPAL DE SAUDE",
+            },
+            "entidade_destino": {
+                "tipo": "EMPRESA",
+                "nome": "EMPRESA XPTO LTDA",
+            },
+            "evidencia": {},
+        }
+
+        with self._main_isolado(
+            conn,
+            publicacao_repository,
+        ) as evento_repository_real, patch.object(
+            main,
+            "EntityRepository",
+            return_value=entity_repository,
+        ), patch.object(
+            main,
+            "listar_pdfs",
+            return_value=[Path("diario_3279.pdf")],
+        ), patch.object(
+            main,
+            "extrair_diario_id",
+            return_value=3279,
+        ), patch.object(
+            main,
+            "calcular_pdf_hash",
+            return_value="a" * 64,
+        ), patch.object(
+            main,
+            "extrair_texto_paginado",
+            return_value=["pagina"],
+        ), patch.object(
+            main,
+            "sanear_texto_paginado",
+            side_effect=lambda texto: texto,
+        ), patch.object(
+            main,
+            "serializar_texto_paginado",
+            return_value="texto",
+        ), patch.object(
+            main,
+            "extrair_data_publicacao",
+            return_value="2026-01-01",
+        ), patch.object(
+            main,
+            "segmentar_publicacoes_paginado",
+            return_value=["bloco"],
+        ), patch.object(
+            main,
+            "serializar_bloco_paginado",
+            side_effect=lambda bloco: bloco,
+        ), patch.object(
+            main,
+            "extrair_publicacoes_pot_estruturadas",
+            return_value=[],
+        ), patch.object(
+            main,
+            "ajustar_blocos_pot_estruturais",
+            side_effect=lambda blocos, _pot: blocos,
+        ), patch.object(
+            main,
+            "extrair_metadados_bloco",
+            return_value=METADADOS,
+        ), patch.object(
+            main,
+            "extrair_eventos_bloco",
+            return_value=[evento],
+        ), patch.object(
+            main,
+            "build_institutional_event",
+            return_value=None,
+        ):
+            evento_repository_real.salvar_evento.return_value = 1
+
+            main.run()
+
+        evento_repository_real.relacionar_entidade.assert_any_call(
+            1,
+            20,
+            ORGAO_CONTRATANTE,
+        )
+
+        evento_repository_real.relacionar_entidade.assert_any_call(
+            1,
+            30,
+            FORNECEDOR,
+        )

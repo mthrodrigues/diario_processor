@@ -80,7 +80,7 @@ def extrair_agente_publico(texto):
 
         r"NOMEAR(?:\s*,?\s*nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s+para",
 
-        r"EXONERAR(?:\s+nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s']+?)\s+do\s+Cargo",
+        r"EXONERAR(?:\s*,?\s*nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s+do\s+Cargo",
 
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s*matr[ií]cula",
 
