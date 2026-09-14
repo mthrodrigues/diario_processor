@@ -1,9 +1,22 @@
-from events import extrair_agente_publico, extrair_eventos_bloco, extrair_participantes_evento, extrair_servidores_designados, segmentar_sub_eventos, extrair_orgao, limpar_texto_institucional
+from events import (
+    extrair_agente_publico,
+    extrair_cargo,
+    extrair_eventos_bloco,
+    extrair_participantes_evento,
+    extrair_servidores_designados,
+    segmentar_sub_eventos,
+    extrair_orgao,
+    limpar_texto_institucional,
+    extrair_numero_portaria_gp,
+)
+
 from main import _timeline_vinculo_valido
 from taxonomy.entity_taxonomy import PESSOA
 from taxonomy.event_taxonomy import (
+    DESIGNACAO,
     DESIGNACAO_FISCAL,
     CONTRATACAO,
+    DISPENSA,
     NOMEACAO,
     EXONERACAO
 )
@@ -905,3 +918,208 @@ def test_exoneracao_extrai_cargo_sem_preposicao_de():
             e for e in eventos if e["tipo_evento"] == EXONERACAO
         )
         assert evento["cargo"] == cargo_esperado
+
+def test_extrair_numero_portaria_gp():
+    """
+    Protege a extração do identificador da Portaria GP a partir do texto
+    do ato administrativo.
+
+    Caso real:
+    Diário 3216 / Portaria GP nº 23/2026.
+
+    Regra esperada:
+    "PORTARIA GP Nº 23/2026"
+    -> "23/2026"
+    """
+    texto = """
+    PORTARIA GP Nº 23/2026 – DISPENSAR, CHRISTIANNE RAQUEL TAVARES DE LIMA,
+    matrícula nº 1.14140-6, da Gratificação de Gestão Escolar - GGE,
+    de Orientador Pedagógico (Escola "E"), Símbolo GGE-3,
+    da Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026.
+    """
+
+    assert extrair_numero_portaria_gp(texto) == "23/2026"
+
+def test_extrair_numero_portaria_gp_aceita_numero_com_simbolo_graus():
+    texto = """
+    PORTARIA GP N° 24/2026 – DESIGNAR, JOÃO DA SILVA,
+    para exercer determinada função.
+    """
+
+    assert extrair_numero_portaria_gp(texto) == "24/2026"
+
+def test_nomeacao_preserva_numero_portaria_gp():
+    """
+    Protege a associação do identificador da Portaria GP ao evento
+    correspondente.
+    """
+    texto = """
+    PORTARIA GP Nº 100/2026 – NOMEAR JOÃO DA SILVA para exercer o
+    Cargo em Comissão de Diretor de Compras, Símbolo CC-2,
+    lotado na Secretaria Municipal de Administração.
+    """
+
+    metadados = {
+        "tipo": "portaria",
+    }
+
+    eventos = extrair_eventos_bloco(
+        metadados,
+        texto,
+        diario_id=1,
+        numero_bloco=1,
+    )
+
+    assert len(eventos) == 1
+
+    evento = eventos[0]
+
+    assert evento["tipo_evento"] == NOMEACAO
+    assert evento["numero_portaria_gp"] == "100/2026"
+
+def test_eventos_preservam_numero_da_propria_portaria_gp():
+    """
+    Protege a associação entre cada Portaria GP e o evento correspondente.
+
+    Uma mesma publicação pode conter várias Portarias GP.
+    Cada evento deve carregar o identificador da sua própria Portaria.
+    """
+    texto = """
+    PORTARIA GP Nº 469/2026
+    NOMEAR JOÃO DA SILVA para exercer o Cargo em Comissão de
+    Diretor de Compras, Símbolo CC-2, lotado na Secretaria
+    Municipal de Administração.
+
+    PORTARIA GP Nº 470/2026
+    NOMEAR MARIA DA SILVA para exercer o Cargo em Comissão de
+    Diretora de Recursos Humanos, Símbolo CC-3, lotada na Secretaria
+    Municipal de Administração.
+    """
+
+    metadados = {
+        "tipo": "portaria",
+    }
+
+    eventos = extrair_eventos_bloco(
+        metadados,
+        texto,
+        diario_id=1,
+        numero_bloco=1,
+    )
+
+    assert len(eventos) == 2
+
+    assert [
+        evento["numero_portaria_gp"]
+        for evento in eventos
+    ] == [
+        "469/2026",
+        "470/2026",
+    ]
+
+def test_dispensa_gera_evento_com_participante():
+    texto = """
+    PORTARIA GP Nº 23/2026
+    DISPENSAR, CHRISTIANNE RAQUEL TAVARES DE LIMA,
+    matrícula nº 1.14140-6,
+    da Gratificação de Gestão Escolar - GGE,
+    de Orientador Pedagógico,
+    Secretaria Municipal de Educação,
+    com efeitos a partir de 02/01/2026.
+    """
+
+    metadados = {"tipo": "portaria"}
+
+    eventos = extrair_eventos_bloco(
+        metadados,
+        texto,
+        diario_id=3216,
+        numero_bloco=5,
+    )
+
+    assert len(eventos) == 1
+
+    evento = eventos[0]
+
+    assert evento["tipo_evento"] == DISPENSA
+    assert evento["numero_portaria_gp"] == "23/2026"
+    assert evento["agente"]["nome"] == "CHRISTIANNE RAQUEL TAVARES DE LIMA"
+    assert evento["participantes"] == [
+        {
+            "tipo": "PESSOA",
+            "nome": "CHRISTIANNE RAQUEL TAVARES DE LIMA",
+        }
+    ]
+
+def test_designar_gera_evento_com_participante_e_orgao():
+    texto = """
+    PORTARIA GP Nº 45/2026 – DESIGNAR,
+    nos termos da Lei Complementar Municipal nº 182/2014 e alterações posteriores,
+    ALESSANDRA SERRADO NEVES, matrícula nº 1.08856-5, para perceber a Gratificação
+    de Gestão Escolar - GGE, de Orientador Pedagógico (Escola "B"), Símbolo GGE-3, Cód.
+    40763, na Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026
+    (Memorando nº 30.920/2025).
+    """
+
+    metadados = {"tipo": "portaria"}
+
+    eventos = extrair_eventos_bloco(
+        metadados,
+        texto,
+        diario_id=3216,
+        numero_bloco=9,
+    )
+
+    assert len(eventos) == 1
+
+    evento = eventos[0]
+
+    assert evento["tipo_evento"] == DESIGNACAO
+    assert evento["agente"]["nome"] == "ALESSANDRA SERRADO NEVES"
+    assert evento["participantes"] == [
+        {
+            "tipo": "PESSOA",
+            "nome": "ALESSANDRA SERRADO NEVES",
+        }
+    ]
+    assert evento["orgao"] == "Secretaria Municipal de Educação"
+    assert evento["numero_portaria_gp"] == "45/2026"
+
+def test_dispensa_extrai_cargo_de_gratificacao():
+    texto = """PORTARIA GP Nº 23/2026 – DISPENSAR, CHRISTIANNE RAQUEL TAVARES DE LIMA,
+    matrícula nº 1.14140-6, da Gratificação de Gestão Escolar - GGE,
+    de Orientador Pedagógico (Escola "E") (Lei Complementar Municipal nº 182/2014
+    e alterações posteriores), Símbolo GGE-3, Cód. 40768,
+    da Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026."""
+
+    assert extrair_cargo(texto) == "Orientador Pedagógico"
+
+def test_designacao_extrai_cargo_de_gratificacao():
+    texto = """PORTARIA GP Nº 45/2026 – DESIGNAR,
+    nos termos da Lei Complementar Municipal nº 182/2014 e alterações posteriores,
+    ALESSANDRA SERRADO NEVES, matrícula nº 1.08856-5,
+    para perceber a Gratificação de Gestão Escolar - GGE,
+    de Orientador Pedagógico (Escola "B"), Símbolo GGE-3, Cód. 40763,
+    na Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026."""
+
+    assert extrair_cargo(texto) == "Orientador Pedagógico"
+
+
+def test_designacao_extrai_cargo_com_unidade_na_denominacao():
+    texto = """PORTARIA GP Nº 46/2026 – DESIGNAR,
+    nos termos da Lei Complementar Municipal nº 182/2014 e alterações posteriores,
+    JANAINA DE OLIVEIRA LIOTÉRIO, matrícula nº 1.15338-2,
+    para perceber a Gratificação de Gestão Escolar - GGE,
+    de Diretor de Escola Municipal "B", Símbolo GGE-6, Cód. 40747,
+    na Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026."""
+
+    assert extrair_cargo(texto) == 'Diretor de Escola Municipal "B"'
+
+def test_dispensa_extrai_cargo_antes_da_fundamentacao_legal():
+    texto = """PORTARIA GP Nº 24/2026 – DISPENSAR, MARIA TUANE FERNANDES DE OLIVEIRA,
+    matrícula nº 1.15106-1, da Gratificação de Gestão Escolar - GGE,
+    de Auxiliar de Direção de Escola Municipal "D" (Lei Complementar Municipal nº 182/2014
+    e alterações posteriores), Símbolo GGE-1, Cód. 40758,
+    da Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026."""
+
+    assert extrair_cargo(texto) == 'Auxiliar de Direção de Escola Municipal "D"'

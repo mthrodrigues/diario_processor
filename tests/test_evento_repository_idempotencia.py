@@ -5,6 +5,7 @@ from infra.db.repositories.entity_relationship_repository import (
 )
 from infra.db.repositories.evento_repository import EventoRepository
 
+from unittest.mock import MagicMock
 
 EVENTO = {
     "tipo_evento": "NOMEACAO",
@@ -41,7 +42,8 @@ class CursorEventos:
         if 'INSERT INTO diario.eventos' not in sql:
             return
 
-        chave = (params[-2], params[-1])
+        chave = (params[13], params[14])
+
         existente = self.conn.eventos.get(chave)
         if existente is None:
             existente = {"id": self.conn.proximo_evento_id, "params": params}
@@ -119,3 +121,39 @@ class EventoRepositoryIdempotenciaTest(TestCase):
         self.assertIn("ON CONFLICT (evento_id, entidade_id, papel) DO NOTHING", sql_evento_entidade)
         self.assertIn("ON CONFLICT (", sql_relacionamento)
         self.assertIn("evento_id", sql_relacionamento)
+
+    def test_salvar_evento_persiste_numero_portaria_gp(self):
+        conn = MagicMock()
+        cursor = conn.cursor.return_value.__enter__.return_value
+
+        cursor.fetchone.return_value = (123,)
+
+        repository = EventoRepository(conn)
+
+        evento = {
+            "tipo_evento": "NOMEACAO",
+            "agente": {
+                "nome": "JOÃO DA SILVA",
+            },
+            "numero_portaria_gp": "100/2026",
+            "evidencia": {
+                "diario_id": 1,
+                "numero_bloco": 1,
+                "texto": "PORTARIA GP Nº 100/2026 – NOMEAR JOÃO DA SILVA...",
+            },
+        }
+
+        evento_id = repository.salvar_evento(
+            evento,
+            publicacao_id=10,
+            numero_evento=1,
+        )
+
+        assert evento_id == 123
+
+        sql = cursor.execute.call_args.args[0]
+        parametros = cursor.execute.call_args.args[1]
+
+        assert "numero_portaria_gp" in sql
+        assert "numero_portaria_gp = COALESCE" in sql
+        assert "100/2026" in parametros

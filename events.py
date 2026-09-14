@@ -13,6 +13,8 @@ from taxonomy.event_taxonomy import (
 
     NOMEACAO,
     EXONERACAO,
+    DISPENSA,
+    DESIGNACAO,
     CONTRATACAO,
     DESIGNACAO_FISCAL
 )
@@ -265,6 +267,9 @@ def extrair_cargo(texto):
 
         # Exercício de função
         r"para exercer\s+o\s+Cargo\s+em\s+Comissão\s+de\s+(.+?)(?=,\s*Símbolo|,\s*lotad|,\s*com efeitos|\.|,|$)",
+
+        # Gratificação de Gestão Escolar
+        r"Gratificação\s+de\s+Gestão\s+Escolar\s*-\s*GGE\s*,\s*de\s+(.+?)(?=\s*\(\s*(?:Escola\b|Lei\b)|,\s*Símbolo\b)",
     ]
 
     for padrao in padroes:
@@ -423,6 +428,21 @@ def extrair_orgao(texto):
 # SEGMENTAÇÃO DE SUBEVENTOS
 # =====================================================
 
+def extrair_numero_portaria_gp(texto):
+    if not texto:
+        return None
+
+    match = re.search(
+        r"PORTARIA\s+GP\s+N[º°]\s*(\d+/\d+)",
+        texto,
+        flags=re.IGNORECASE
+    )
+
+    if not match:
+        return None
+
+    return match.group(1)
+
 def segmentar_sub_eventos(texto):
 
     partes = re.split(
@@ -481,6 +501,7 @@ def extrair_eventos_bloco(
 
         # Dá truncate no subevento para o processamento do evento
         subevento = subevento[:2000]
+        numero_portaria_gp = extrair_numero_portaria_gp(subevento)
         # Dá upper na versão do evento usado para o tipo de detecção do evento
         subevento_upper = subevento.upper()
 
@@ -606,6 +627,8 @@ def extrair_eventos_bloco(
 
                 "orgao": orgao,
 
+                "numero_portaria_gp": numero_portaria_gp,
+
                 "evidencia": {
                     "diario_id": diario_id,
                     "numero_bloco": numero_bloco,
@@ -643,6 +666,82 @@ def extrair_eventos_bloco(
                 "cargo": cargo,
 
                 "orgao": orgao,
+
+                "evidencia": {
+                    "diario_id": diario_id,
+                    "numero_bloco": numero_bloco,
+                    "texto": subevento[:1000]
+                }
+            }
+
+            eventos.append(evento)
+
+        # =====================================================
+        # EVENTO: DISPENSA
+        # =====================================================
+
+        if "DISPENSAR" in subevento_upper:
+
+            participantes = extrair_participantes_evento(subevento, texto_bloco=texto_bloco)
+            agente = participantes[0]["nome"] if len(participantes) == 1 else None
+
+            cargo = extrair_cargo(subevento)
+
+            orgao = extrair_orgao(subevento)
+
+            evento = {
+                "tipo_evento": DISPENSA,
+
+                "agente": {
+                    "tipo": PESSOA,
+                    "nome": agente
+                },
+
+                "participantes": participantes,
+
+                "cargo": cargo,
+
+                "orgao": orgao,
+
+                "numero_portaria_gp": numero_portaria_gp,
+
+                "evidencia": {
+                    "diario_id": diario_id,
+                    "numero_bloco": numero_bloco,
+                    "texto": subevento[:1000]
+                }
+            }
+
+            eventos.append(evento)
+
+        # =====================================================
+        # EVENTO: DESIGNAÇÃO
+        # =====================================================
+
+        if "DESIGNAR" in subevento_upper:
+
+            participantes = extrair_participantes_evento(subevento, texto_bloco=texto_bloco)
+            agente = participantes[0]["nome"] if len(participantes) == 1 else None
+
+            cargo = extrair_cargo(subevento)
+
+            orgao = extrair_orgao(subevento)
+
+            evento = {
+                "tipo_evento": DESIGNACAO,
+
+                "agente": {
+                    "tipo": PESSOA,
+                    "nome": agente
+                },
+
+                "participantes": participantes,
+
+                "cargo": cargo,
+
+                "orgao": orgao,
+
+                "numero_portaria_gp": numero_portaria_gp,
 
                 "evidencia": {
                     "diario_id": diario_id,

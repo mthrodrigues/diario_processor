@@ -106,5 +106,8 @@ def build_institutional_event(
             "evidencia": evento.get(
                 "evidencia"
             ),
+            "numero_portaria_gp": evento.get(
+                "numero_portaria_gp"
+            ),
         }
     }

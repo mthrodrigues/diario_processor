@@ -48,12 +48,13 @@ class EventoRepository:
                         evidencia_textual,
                         data_publicacao,
                         publicacao_id,
-                        numero_evento
+                        numero_evento,
+                        numero_portaria_gp
 
                     ) VALUES (
 
                         %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 
                     )
                     ON CONFLICT (publicacao_id, numero_evento) DO UPDATE SET
@@ -69,7 +70,8 @@ class EventoRepository:
                         diario_id = COALESCE(EXCLUDED.diario_id, {self.table}.diario_id),
                         numero_bloco = COALESCE(EXCLUDED.numero_bloco, {self.table}.numero_bloco),
                         evidencia_textual = COALESCE(EXCLUDED.evidencia_textual, {self.table}.evidencia_textual),
-                        data_publicacao = COALESCE(EXCLUDED.data_publicacao, {self.table}.data_publicacao)
+                        data_publicacao = COALESCE(EXCLUDED.data_publicacao, {self.table}.data_publicacao),
+                        numero_portaria_gp = COALESCE(EXCLUDED.numero_portaria_gp, {self.table}.numero_portaria_gp)
                     RETURNING id
                     """,
                     (
@@ -102,6 +104,8 @@ class EventoRepository:
                         publicacao_id,
 
                         numero_evento,
+
+                        evento.get("numero_portaria_gp"),
                     )
                 )
 
