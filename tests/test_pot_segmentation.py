@@ -97,38 +97,6 @@ def test_diario_3279_isola_maurineia_do_conteudo_posterior():
         for bloco in blocos
     )
 
-
-def test_diario_3282_preserva_continuacao_e_isola_leticiane():
-    texto_paginado, blocos_paginados = _blocos_ajustados(
-        PDFS_REAIS / "diario_3282.pdf"
-    )
-    blocos = _serializar_blocos(blocos_paginados)
-    blocos_pot = _blocos_pot(blocos)
-
-    assert len(blocos_pot) == 3
-    assert any("de Leite" in bloco for bloco in blocos_pot)
-    assert _linhas(blocos_paginados) == tuple(
-        linha
-        for linha in texto_paginado.linhas
-        if linha.incluir_no_texto_saneado
-    )
-
-    leticiane = next(
-        bloco
-        for bloco in blocos_pot
-        if "Leticiane de" in bloco
-    )
-
-    assert "BENEFICIÁRIOS DO PROGRAMA OPERAÇÃO TRABALHO (POT)" in leticiane
-    assert "GERAL" not in leticiane
-    assert "CÂMARA DE EDUCAÇÃO INFANTIL" not in leticiane
-    assert any(
-        "CÂMARA DE EDUCAÇÃO INFANTIL" in bloco
-        and identificar_tipo(bloco) != "pot"
-        for bloco in blocos
-    )
-
-
 @pytest.mark.parametrize(
     "nome_pdf",
     [

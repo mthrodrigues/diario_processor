@@ -44,6 +44,7 @@ class PublicacaoRepository:
         contrato_normalizado=None,
         pdf_hash=None,
         parser_version=None,
+        numero_aviso=None,
     ):
         contratante_normalizado_canonico = normalize_contratante(contratante)
         if contratante_normalizado != contratante_normalizado_canonico:
@@ -73,10 +74,12 @@ class PublicacaoRepository:
                     processo_normalizado,
                     data_publicacao,
                     pdf_hash,
-                    parser_version
+                    parser_version,
+                    numero_aviso
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s
                 )
                 ON CONFLICT (pdf_hash, numero_bloco) DO UPDATE SET
                     diario_id = COALESCE(EXCLUDED.diario_id, {self.table}.diario_id),
@@ -98,7 +101,8 @@ class PublicacaoRepository:
                     data_processamento = EXCLUDED.data_processamento,
                     processo_normalizado = COALESCE(EXCLUDED.processo_normalizado, {self.table}.processo_normalizado),
                     data_publicacao = COALESCE(EXCLUDED.data_publicacao, {self.table}.data_publicacao),
-                    parser_version = COALESCE(EXCLUDED.parser_version, {self.table}.parser_version)
+                    parser_version = COALESCE(EXCLUDED.parser_version, {self.table}.parser_version),
+                    numero_aviso = COALESCE(EXCLUDED.numero_aviso, {self.table}.numero_aviso)
                 """
             params = (
                 diario_id,
@@ -123,6 +127,7 @@ class PublicacaoRepository:
                 data_publicacao,
                 pdf_hash,
                 parser_version,
+                numero_aviso,
             )
             cursor.execute(
                 sql + " RETURNING id",

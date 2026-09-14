@@ -314,6 +314,14 @@ def _eh_inicio_publicacao(linha, linha_anterior=None):
     if linha_upper.startswith(LINHAS_BOILERPLATE):
         return False
 
+    # "EDITAL: URL" é campo documental, não início de nova publicação.
+    if re.match(
+        r"EDITAL\s*:\s*https?://",
+        linha_limpa,
+        flags=re.IGNORECASE,
+    ):
+        return False
+
     #
     # Continuação de título
     #
@@ -406,6 +414,7 @@ def extrair_valor_principal(texto):
 
     valor = r'(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:,\d{2})?)'
     padroes_contexto = [
+        rf'\bvalor\s+total\s+da\s+proposta\s*(?:de|:)?\s*R\$\s*:?\s*{valor}',
         rf'\bvalor\s+(?:global|total|estimado|contratado|da\s+contrata[çc][ãa]o|do\s+contrato|da\s+proposta)\s*(?:de|:)?\s*R\$\s*:?\s*{valor}',
         rf'\bvalor\s*R\$\s*:?\s*{valor}',
         rf'\bvalor\s+de\s+R\$\s*:?\s*{valor}',
@@ -514,7 +523,7 @@ def identificar_tipo(texto):
         ),
 
         # Demais documentos
-        (r'^CONTRATO\b', "contrato"),
+        (r'^CONTRATO\s+N[º°O.]?\s*\S+', "contrato"),
         (r'^DECRETO\b', "decreto"),
         (r'^RESOLU[ÇC][ÃA]O\b', "resolucao"),
         (r'^TERMO\b', "termo"),
@@ -636,6 +645,32 @@ def extrair_processo(texto):
 
     return None
 
+def extrair_numero_aviso(texto):
+    """
+    Extrai o número do aviso quando o bloco começa com:
+    AVISO Nº X/AAAA
+
+    Retorna, por exemplo:
+    "169/2025"
+
+    Retorna None quando o aviso não possui numeração.
+    """
+    if not texto:
+        return None
+
+    padrao = r'^\s*AVISO\s+N[º°O.]?\s*([0-9]+/[0-9]{2,4})\b'
+
+    match = re.search(
+        padrao,
+        texto,
+        flags=re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    return match.group(1)
+
 def extrair_processos(texto):
     """
     Extrai todas as ocorrências de processo administrativo do texto.
@@ -719,14 +754,86 @@ def extrair_fornecedor(texto):
         "PODER EXECUTIVO",
     ]
 
+    match_ata = re.search(
+        r'\b(?:CONTRATADO|CONTRATADA)\s*:\s*'
+        r'.*?são\s+as\s+que\s+seguem\s*:\s*'
+        r'([^\r\n]+)',
+        texto,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    if match_ata:
+        candidato = match_ata.group(1).strip()
+        candidato = re.split(
+            r'\s+CNPJ\s*:',
+            candidato,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0].strip()
+        return candidato
+
+    # Estrutura usada em avisos de adesão/contratação:
+    # "a ser fornecida pela empresa NOME, inscrita no CNPJ..."
+    #
+    # Em corrigendas, a ocorrência após "Leia-se:" tem prioridade
+    # sobre a ocorrência anterior introduzida por "Onde-se lê:".
+
+    trecho_fornecedor = texto
+
+    if re.search(r'\bLeia-se\s*:', texto, flags=re.IGNORECASE):
+        trecho_fornecedor = re.split(
+            r'\bLeia-se\s*:',
+            texto,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[1]
+
+    match_fornecedor_empresa = re.search(
+        r'\ba\s+ser\s+fornecid[ao]\s+pela\s+empresa\s+'
+        r'(.+?)'
+        r'(?=\s*,\s*inscrit[ao]\b)',
+        trecho_fornecedor,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    if match_fornecedor_empresa:
+        candidato = match_fornecedor_empresa.group(1).strip()
+        candidato = _normalizar_espacos(candidato)
+
+        if candidato:
+            return candidato
+
     candidato = _extrair_campo_contextual(
         texto,
         rotulos_confiaveis,
         limite=160
     )
 
-    if candidato:
+    if candidato and re.search(
+        r'tabela\s+abaixo\s*:',
+        candidato,
+        flags=re.IGNORECASE,
+    ):
+        candidato = re.split(
+            r'tabela\s+abaixo\s*:',
+            candidato,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[1].strip()
 
+    if candidato and re.search(
+        r'são\s+as\s+que\s+seguem\s*:',
+        candidato,
+        flags=re.IGNORECASE,
+    ):
+        candidato = re.split(
+            r'são\s+as\s+que\s+seguem\s*:',
+            candidato,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[1].strip()
+
+    if candidato:
         candidato_upper = candidato.upper()
 
         if any(

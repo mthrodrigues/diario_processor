@@ -20,6 +20,7 @@ from parser import (
     segmentar_publicacoes,
     extrair_processos,
     extrair_referencias_contratos,
+    extrair_numero_aviso,
 )
 
 
@@ -1325,3 +1326,101 @@ def test_extrair_referencias_contratos_aceita_contrato_com_numero():
 
     assert len(resultado) == 1
     assert resultado[0]["contrato_texto"] == "008.012.2024"
+
+def test_identificar_tipo_nao_classifica_frase_iniciada_por_contrato():
+    texto = """
+    SECRETARIA MUNICIPAL DE EDUCAÇÃO
+    PARECER AUTORIZATIVO CME Nº 04/2026
+    A documentação referente aos alunos está adequada.
+    Contrato com a Instituição). Os impressos de documentos escolares,
+    individuais e coletivos estão adequados.
+    """
+
+    assert identificar_tipo(texto) != "contrato"
+
+
+def test_identificar_tipo_reconhece_contrato_numerado():
+    texto = """
+    CONTRATO Nº 008.023.2026
+    Contratante: O Município de Teresópolis.
+    Contratada: Sociedade Religiosa Carmelo Espírito Santo.
+    """
+
+    assert identificar_tipo(texto) == "contrato"
+
+def test_extrair_numero_aviso():
+    assert extrair_numero_aviso(
+        "AVISO Nº 169/2025\n"
+        "AVISO DE REMARCAÇÃO E REPUBLICAÇÃO DE EDITAL"
+    ) == "169/2025"
+
+
+def test_extrair_numero_aviso_sem_simbolo():
+    assert extrair_numero_aviso(
+        "AVISO N° 7/2026\n"
+        "ADIAMENTO SINE DIE"
+    ) == "7/2026"
+
+
+def test_extrair_numero_aviso_sem_numero():
+    assert extrair_numero_aviso(
+        "AVISO DE PREGÃO\n"
+        "PREGÃO ELETRÔNICO Nº 90008/2026"
+    ) is None
+
+def test_fornecedor_ata_registro_precos():
+    texto = """
+    AVISO Nº 1/2026
+    ATA DE REGISTRO DE PREÇOS Nº 039/2025
+    Contratado: Os preços, as quantidades, o fornecedor e as especificações dos materiais
+    registrados nesta Ata, encontram-se indicados na tabela abaixo:
+    SANEADORA LAGOS LTDA CNPJ: 50.886.917/0001-03
+    """
+
+    assert extrair_fornecedor(texto) == "SANEADORA LAGOS LTDA"
+
+def test_fornecedor_ata_registro_precos_ignora_introducao_antes_de_sao_as_que_seguem():
+    texto = """
+    AVISO Nº 51/2025
+
+    ATA DE REGISTRO DE PREÇOS
+
+    Contratado: O preço registrado, as especificações do objeto, as quantidades
+    mínimas e máximas de cada item, fornecedor(es) e as demais condições
+    ofertadas na(s) proposta(s) são as que seguem:
+
+    AX CAPITAL SERVIÇOS LTDA
+    CNPJ: 00.000.000/0001-00
+    """
+
+    assert extrair_fornecedor(texto) == "AX CAPITAL SERVIÇOS LTDA"
+
+def test_fornecedor_por_empresa():
+    texto = """
+    AVISO Nº 94/2026
+    Contratação a ser fornecida pela empresa
+    LINK CARD ADMINISTRADORA DE BENEFICIOS LTDA,
+    inscrita no CNPJ: 12.345.678/0001-90.
+    """
+
+    assert extrair_fornecedor(texto) == "LINK CARD ADMINISTRADORA DE BENEFICIOS LTDA"
+
+
+def test_fornecedor_por_empresa_em_corrigenda_usa_leia_se():
+    texto = """
+    AVISO Nº 155/2026
+    CORRIGENDA REFERENTE AO AVISO Nº 144/2026.
+
+    Onde-se lê: "a ser fornecido pela empresa MOBIT - MOBILIDADE,
+    ILUMINACAO E TECNOLOGIA LTDA, inscrita no CNPJ:
+    16.383.848/0001-87".
+
+    Leia-se: "a ser fornecido pela empresa SMART CITY QUATRO
+    EFICIENTIZACAO ENERGETICA E VIDEOMONITORAMENTO SPE LTDA,
+    inscrita no CNPJ: 66.059.177/0001-71".
+    """
+
+    assert (
+        extrair_fornecedor(texto)
+        == "SMART CITY QUATRO EFICIENTIZACAO ENERGETICA E VIDEOMONITORAMENTO SPE LTDA"
+    )

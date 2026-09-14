@@ -348,6 +348,7 @@ def run():
                         data_publicacao=data_publicacao,
                         contrato_normalizado=metadados["contrato_normalizado"],
                         pdf_hash=pdf_hash,
+                        numero_aviso=metadados.get("numero_aviso"),
                     )
 
                     # =========================================

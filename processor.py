@@ -20,6 +20,7 @@ from parser import (
     extrair_valores,
     extrair_vigencia,
     identificar_tipo,
+    extrair_numero_aviso,
 )
 
 
@@ -71,6 +72,7 @@ def extrair_metadados_bloco(texto_bloco):
     tipo = identificar_tipo(texto_bloco)
     metadados = {
         "tipo": tipo,
+        "numero_aviso": extrair_numero_aviso(texto_bloco),
         "processo": extrair_processo(texto_bloco),
         "processo_normalizado": None,
         "contrato": extrair_contrato(texto_bloco),
@@ -90,6 +92,16 @@ def extrair_metadados_bloco(texto_bloco):
     metadados["contrato_normalizado"] = normalize_contrato(metadados["contrato"])
 
     enriquecer_contratual = deve_enriquecer_contratual(tipo)
+
+    if (
+        tipo == "aviso"
+        and re.search(
+            r"ATA\s+DE\s+REGISTRO\s+DE\s+PREÇOS",
+            texto_bloco,
+            flags=re.IGNORECASE,
+        )
+    ):
+        enriquecer_contratual = True
 
     if tipo == "termo" and _termo_tem_estrutura_contratual(texto_bloco):
         enriquecer_contratual = True
@@ -114,6 +126,25 @@ def extrair_metadados_bloco(texto_bloco):
         tipo == "corrigenda"
         and _corrigenda_tem_estrutura_contratual(texto_bloco)
         and metadados["fornecedor"] is None
+    ):
+        fornecedor = _extrair_fornecedor_corrigenda(texto_bloco)
+
+        metadados["fornecedor"] = fornecedor
+        metadados["fornecedor_normalizado"] = normalize_fornecedor(fornecedor)
+    
+    if (
+        tipo == "aviso"
+        and metadados["fornecedor"] is None
+        and re.search(
+            r"a\s+ser\s+fornecid[ao]\s+pela\s+empresa",
+            texto_bloco,
+            flags=re.IGNORECASE,
+        )
+        and re.search(
+            r"\bLeia-se\s*:",
+            texto_bloco,
+            flags=re.IGNORECASE,
+        )
     ):
         fornecedor = _extrair_fornecedor_corrigenda(texto_bloco)
 

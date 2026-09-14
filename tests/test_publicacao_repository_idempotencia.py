@@ -95,7 +95,7 @@ class PublicacaoRepositoryIdempotenciaTest(TestCase):
         registro = next(iter(self.conn.publicacoes.values()))
         self.assertEqual(primeiro_id, segundo_id)
         self.assertEqual(registro["params"][9], "Fornecedor revisado")
-        self.assertEqual(registro["params"][-1], "parser-v2")
+        self.assertEqual(registro["params"][21], "parser-v2")
 
     def test_conflito_preserva_valores_existentes_quando_nova_extracao_traz_null(self):
         self.repository.salvar_publicacao(**publicacao())
@@ -114,7 +114,7 @@ class PublicacaoRepositoryIdempotenciaTest(TestCase):
         self.assertEqual(registro["params"][9], "Fornecedor original")
         self.assertEqual(registro["params"][14], 100.0)
         self.assertEqual(registro["params"][16], "Objeto original")
-        self.assertEqual(registro["params"][-1], "parser-v1")
+        self.assertEqual(registro["params"][21], "parser-v1")
 
     def test_blocos_e_pdfs_diferentes_criam_ids_diferentes(self):
         primeiro_id = self.repository.salvar_publicacao(**publicacao())

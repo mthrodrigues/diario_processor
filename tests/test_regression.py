@@ -1,11 +1,21 @@
 from pathlib import Path
 
-from extractor import extrair_texto
-from parser import identificar_tipo, segmentar_publicacoes
+from extractor import extrair_texto_paginado, extrair_texto
+from parser import (
+    identificar_tipo,
+    sanear_texto_paginado,
+    segmentar_publicacoes,
+    segmentar_publicacoes_paginado,
+    serializar_bloco_paginado,
+)
 
 
 PDF = Path(
     r"C:\automacoes\diario_bot\pdfs\2026\02\diario_3265.pdf"
+)
+
+PDF_3213 = Path(
+    r"C:\automacoes\diario_bot\pdfs\2026\01\diario_3213.pdf"
 )
 
 
@@ -69,3 +79,40 @@ def test_portaria_gp_311():
     # Deve conter o encerramento da publicação.
     #
     assert "= Prefeito =" in bloco
+
+def test_diario_3213_nao_quebra_aviso_em_edital_url():
+    assert PDF_3213.exists(), f"PDF não encontrado: {PDF_3213}"
+
+    texto_paginado = extrair_texto_paginado(PDF_3213)
+    texto_paginado = sanear_texto_paginado(texto_paginado)
+
+    blocos_paginados = segmentar_publicacoes_paginado(texto_paginado)
+
+    blocos = [
+        serializar_bloco_paginado(bloco)
+        for bloco in blocos_paginados
+    ]
+
+    blocos_aviso_pregao = [
+        bloco
+        for bloco in blocos
+        if "AVISO DE PREGÃO" in bloco
+    ]
+
+    assert len(blocos_aviso_pregao) == 1
+
+    bloco = blocos_aviso_pregao[0]
+
+    assert "EDITAL: https://licitacao.teresopolis.rj.gov.br" in bloco
+    assert "INFORMAÇÕES:" in bloco
+    assert "LOCAL DA SESSÃO:" in bloco
+
+    assert identificar_tipo(bloco) == "aviso"
+
+    blocos_edital_url = [
+        bloco
+        for bloco in blocos
+        if bloco.lstrip().startswith("EDITAL: http")
+    ]
+
+    assert blocos_edital_url == []
