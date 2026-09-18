@@ -378,6 +378,13 @@ Eventos atualmente emitidos pelo fluxo principal:
 - `DESIGNACAO_FISCAL`
 - `NOMEACAO`
 - `EXONERACAO`
+- `DISPENSA`
+- `DESIGNACAO`
+
+Tipos declarados na taxonomia que ainda não são emitidos pelo fluxo principal de `events.py`:
+
+- `ADITIVO`
+- `LICITACAO`
 
 ### Entidades
 
