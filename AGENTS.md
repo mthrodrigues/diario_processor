@@ -1,4 +1,4 @@
-# Diario Processor — AGENT INSTRUCTIONS
+# Diario Processor — Instruções para agentes
 
 ## 1. Papel deste arquivo
 
