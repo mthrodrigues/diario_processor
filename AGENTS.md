@@ -311,6 +311,7 @@ O idioma padrão do repositório e de todas as entregas de desenvolvimento é **
 
 Essa regra se aplica obrigatoriamente a:
 
+- nomes de branches novas;
 - mensagens de commit;
 - títulos e descrições de Pull Requests;
 - títulos, descrições e comentários de Issues;
