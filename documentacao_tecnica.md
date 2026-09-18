@@ -378,6 +378,13 @@ Eventos atualmente emitidos pelo fluxo principal:
 - `DESIGNACAO_FISCAL`
 - `NOMEACAO`
 - `EXONERACAO`
+- `DISPENSA`
+- `DESIGNACAO`
+
+Tipos declarados na taxonomia que ainda não são emitidos pelo fluxo principal de `events.py`:
+
+- `ADITIVO`
+- `LICITACAO`
 
 ### Entidades
 
@@ -667,7 +674,7 @@ Evolucoes efetivamente incorporadas ao projeto:
 
 - `main.py` mantem `REPROCESSAR_TUDO = True`, entao a incrementalidade existe, mas nao fica ativa no fluxo padrao.
 - `InstitutionalEventOutboxRepository.publish()` espera `to_dict()`, enquanto `build_institutional_event()` retorna `dict`.
-- `taxonomy/event_taxonomy.py` define mais tipos de evento do que `events.py` emite hoje.
+- `events.py` já emite `DISPENSA` e `DESIGNACAO`, além de `CONTRATACAO`, `DESIGNACAO_FISCAL`, `NOMEACAO` e `EXONERACAO`; a taxonomia ainda declara `ADITIVO` e `LICITACAO`, que não são emitidos pelo fluxo principal.
 - O dump `diario_schema.sql` contem tabelas sem referencia no codigo atual, o que indica legado de banco nao refletido no fluxo Python principal.
 - `contextual_enrichment.py` mantem uma chamada a `logging.getLogger('diario_processor.enrichment')` para auditoria da aplicacao da Regra 001 (ADR-0001), mas esse logger nao possui handler configurado em nenhum ponto do codigo. Na pratica, essa chamada nao produz saida persistida nem em console. E um ponto distinto do logger central `diario_processor` introduzido pelo ADR-011, que cobre apenas as falhas (excecoes) da EC, e nao o registro de auditoria das aplicacoes bem-sucedidas da regra.
 
