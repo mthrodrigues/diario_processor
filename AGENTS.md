@@ -278,7 +278,7 @@ As seguintes questões já estão documentadas e **não devem ser tratadas silen
 1. `main.py` mantém `REPROCESSAR_TUDO = True`, portanto a capacidade incremental existe, mas o fluxo padrão reprocessa tudo.
 2. `InstitutionalEventOutboxRepository.publish()` e `build_institutional_event()` possuem atualmente um contrato incompatível documentado: o repositório espera `to_dict()`, enquanto o builder retorna `dict`. Consulte `documentacao_tecnica.md` antes de alterar ou habilitar esse caminho.
 3. O logger de auditoria de aplicações bem-sucedidas da Regra 001 (`diario_processor.enrichment`) não possui handler persistente configurado no estado atual. A ADR-011 cobre as falhas da EC, não a auditoria de sucesso.
-4. A taxonomia de eventos contém mais tipos do que os tipos atualmente emitidos pelo fluxo de `events.py`.
+4. `events.py` emite atualmente `CONTRATACAO`, `DESIGNACAO_FISCAL`, `NOMEACAO`, `EXONERACAO`, `DISPENSA` e `DESIGNACAO`; a taxonomia ainda declara `ADITIVO` e `LICITACAO`, que não são emitidos pelo fluxo principal.
 
 Quando uma tarefa envolver uma dessas áreas, confirme o estado atual no código e na documentação antes de propor uma correção.
 
