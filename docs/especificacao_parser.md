@@ -38,6 +38,10 @@ CONTRATACAO	contrato/extrato
 DESIGNACAO_FISCAL	portaria
 NOMEACAO	portaria
 EXONERACAO	portaria
+DISPENSA	portaria
+DESIGNACAO	portaria
+
+ADITIVO e LICITACAO permanecem declarados na taxonomia, mas não são emitidos pelo fluxo principal de events.py atualmente.
 
 5. Princípios
 
@@ -47,11 +51,11 @@ Por exemplo:
 
 Regra 1
 
-Toda extração textual ocorre exclusivamente no parser.
+O parser é responsável pela extração e normalização dos metadados documentais do bloco.
 
 Regra 2
 
-events.py apenas interpreta metadados previamente extraídos.
+events.py interpreta os metadados do bloco e também executa extrações específicas de eventos institucionais a partir do texto do subevento, como agente público, cargo e órgão. Essas regras devem permanecer explícitas, testáveis e contextualizadas.
 
 Regra 3
 
