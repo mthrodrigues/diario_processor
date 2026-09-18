@@ -635,6 +635,81 @@ def test_extrair_orgao_procuradoria_geral_em_exoneracao():
 
     assert extrair_orgao(texto) == "Procuradoria Geral"
 
+
+def test_extrair_orgao_corregedoria_guarda_civil_municipal_diario_3246_bloco_17():
+    texto = """
+    PORTARIA SMSOPM Nº 2/2026, de 04 de Fevereiro de 2026.
+    Ver consolidado Comissão Permanente de Sindicância e
+    Processo Administrativo Disciplinar da
+    Guarda Civil Municipal
+    O Corregedor da Guarda Civil Municipal, no uso de suas atribuições legais, e tendo em
+    vista o disposto lhe confere o Art. 48 da Lei 4.340 de 27 de abril de 2023 da Lei Municipal
+    e no art. 149 da Lei Federal nº 8.112
+    RESOLVE:
+    Institui a Comissão Permanente de Sindicância e Processo Administrativo Disciplinar no
+    âmbito do Corregedoria da Guarda Civil Municipal vinculada à Secretaria de Segurança,
+    Ordem Pública e Mobilidade para o ano de 2026.
+    Art. 1º Instituir a Comissão Permanente de Sindicância e Processo Administrativo
+    Disciplinar da Corregedoria com o objetivo de apurar supostas infrações disciplinares,
+    conduzir sindicâncias investigativas, processuais e procedimentos administrativos
+    disciplinares, bem como promover orientação administrativa.
+    Art. 2º Designar os servidores estáveis abaixo relacionados para compor a r
+    """
+
+    assert extrair_orgao(texto) == "Corregedoria da Guarda Civil Municipal"
+
+
+def test_extrair_orgao_nao_infere_corregedoria_de_cargo_diario_3249_bloco_6():
+    texto = """
+    PORTARIA SMSOPM Nº 3/2026, de 05 de Fevereiro de 2026.
+    Ver consolidado
+    Dispõe sobre a instauração de Sindicância
+    contraditória.
+    O Corregedor da Guarda Civil Municipal de
+    Teresópolis, no uso das atribuições previstas no Art. 48 da Lei 4.340 de 27 de abril de
+    2023 e tendo em vista o disposto nos artigos
+    143, 148 e 149 da Lei nº 8.112, de 11 de
+    dezembro de 1990,
+    RESOLVE:
+    Art. 1º Instaurar Sindicância Contraditória, visando à apuração de eventuais
+    responsabilidades administrativas descritas no protocolo da ouvidoria geral nº: 2860653,
+    bem como proceder ao exame dos atos e fatos conexos que emergirem no curso dos
+    trabalhos.
+    Art. 2º Designar para compor a Comissão de Processo Administrativo Disciplinar os
+    servidores: Gean Fabrizio Teixeira de Almada. Mat. 1.07537-4, Gustavo Passos dos
+    Santos. Mat. 1.09169-8. e Marcela Félix da Silva. Mat. 1.12393-9, para, sob a presidência
+    do primeiro, realizar os trabalhos apurados e apresentar relatório conclusivo no prazo
+    previsto em Lei.
+    Art. 3º A Comiss
+    """
+
+    assert extrair_orgao(texto) is None
+
+
+def test_extrair_orgao_nao_infere_corregedoria_de_cargo_diario_3333_bloco_10():
+    texto = """
+    PORTARIA COR.GCM Nº 4, de 12 de Maio de 2026.
+    Dispõe sobre a instauração de Sindicância
+    Acusatória.
+    O Corregedor da Guarda Civil Municipal de Teresópolis, no uso das atribuições previstas
+    no Art. 48 da Lei 4.340 de 27 de abril de 2023 e tendo em vista o disposto nos artigos
+    143, 148 e 149 da Lei nº 8.112, de 11 de dezembro de 1990,
+    RESOLVE:
+    Art. 1º Instaurar Sindicância acusatória, visando à apuração de eventuais
+    responsabilidades administrativas descritas no Memorando Interno da Guarda Civil
+    Municipal nº: 22.009/2025, bem como proceder ao exame dos atos e fatos conexos que
+    emergirem no curso dos trabalhos.
+    Art. 2º Designar para compor a Comissão de Processo Administrativo Disciplinar os
+    servidores: Gean Fabrizio Teixeira de Almada. Mat. 1.07537-4, Gustavo Passos dos
+    Santos. Mat. 1.09169-8. e Vagner Machado Roberto. Mat. 1.1, para, sob a presidência do
+    primeiro, realizar os trabalhos apurados e apresentar relatório conclusivo no prazo
+    previsto em Lei.
+    Art. 3º A Comissão deverá proceder
+    """
+
+    assert extrair_orgao(texto) is None
+
+
 def test_extrair_orgao_secretaria_obras():
     texto = (
         "firmado entre a Secretaria de Obras e Serviços Públicos "
@@ -1123,3 +1198,117 @@ def test_dispensa_extrai_cargo_antes_da_fundamentacao_legal():
     da Secretaria Municipal de Educação, com efeitos a partir de 02/01/2026."""
 
     assert extrair_cargo(texto) == 'Auxiliar de Direção de Escola Municipal "D"'
+
+def test_extrair_agente_publico_designar_com_matricula():
+    texto = """PORTARIA GP Nº
+323/2026 – DESIGNAR, nos termos da Lei Complementar Municipal nº 182/2014 e
+alterações posteriores, JOSIANE MARINA SILVEIRA RODRIGUES TAYT-
+SOHN, matrícula nº 1.08800-1, para perceber a Gratificação de Gestão Escolar - GGE, de
+Auxiliar de Direção de Escola Municipal "E", Símbolo GGE-1, Cód. 40814, na Secretaria
+Municipal de Educação, a partir de 04/03/2026 (Memorando nº 2.793/2026)."""
+
+    resultado = extrair_agente_publico(texto)
+
+    assert resultado is not None
+    assert "JOSIANE MARINA SILVEIRA RODRIGUES" in resultado
+    assert "TAYT-" in resultado
+    assert "SOHN" in resultado
+
+
+def test_designar_enumerada():
+    texto = '''
+    Art. 2º Designar os servidores estáveis abaixo relacionados para compor a referida Comissão,
+    sem prejuízo de suas atribuições funcionais, sob a presidência do primeiro:
+    I - Gean Fabrizio Teixeira de Almada. Mat. 1.07537-4
+    II - Gustavo Passos dos Santos. Mat. 1.09169-8
+    III - Marcela Félix da Silva. Mat. 1.12393-9
+    '''
+    from events import extrair_servidores_designados
+    result = extrair_servidores_designados(texto)
+    nomes = [p["nome"] for p in result]
+    assert nomes == [
+        "Gean Fabrizio Teixeira de Almada",
+        "Gustavo Passos dos Santos",
+        "Marcela Félix da Silva",
+    ]
+
+def test_designar_textual_com_virgula_e_e():
+    texto = '''
+    Art. 2º Designar para compor a Comissão de Processo Administrativo Disciplinar os servidores:
+    Gean Fabrizio Teixeira de Almada. Mat. 1.07537-4, Gustavo Passos dos
+    Santos. Mat. 1.09169-8. e Marcela Félix da Silva. Mat. 1.12393-9, para,
+    sob a presidência do primeiro, realizar os trabalhos apurados...
+    '''
+    from events import extrair_servidores_designados
+    result = extrair_servidores_designados(texto)
+    nomes = [p["nome"] for p in result]
+    assert nomes == [
+        "Gean Fabrizio Teixeira de Almada",
+        "Gustavo Passos dos Santos",
+        "Marcela Félix da Silva",
+    ]
+
+def test_designar_textual_outro_nome():
+    texto = '''
+    Art. 2º Designar para compor a Comissão de Processo Administrativo Disciplinar os servidores:
+    Gean Fabrizio Teixeira de Almada. Mat. 1.07537-4, Gustavo Passos dos
+    Santos. Mat. 1.09169-8. e Vagner Machado Roberto. Mat. 1.1, para,
+    sob a presidência do primeiro, realizar os trabalhos apurados...
+    '''
+    from events import extrair_servidores_designados
+    result = extrair_servidores_designados(texto)
+    nomes = [p["nome"] for p in result]
+    assert nomes == [
+        "Gean Fabrizio Teixeira de Almada",
+        "Gustavo Passos dos Santos",
+        "Vagner Machado Roberto",
+    ]
+
+def test_nomear_nao_afetado():
+    texto = '''
+    NOMEAR, os servidores GEAN FABRIZIO TEIXEIRA DE ALMADA, matrícula nº 1.07537-4, 
+    GUSTAVO PASSOS DOS SANTOS, matrícula nº 1.09169-8 e MARCELA FÉLIX DA SILVA, 
+    matrícula nº 1.12393-9, para exercer a função...
+    '''
+    from events import extrair_servidores_designados
+    result = extrair_servidores_designados(texto)
+    nomes = [p["nome"] for p in result]
+    assert nomes == [
+        "GEAN FABRIZIO TEIXEIRA DE ALMADA",
+        "GUSTAVO PASSOS DOS SANTOS",
+        "MARCELA FÉLIX DA SILVA",
+    ]
+
+
+def test_referencia_interna_a_portaria_gp_nao_cria_subevento():
+    texto = """
+    PORTARIA GP Nº 727/2026 – NOMEAR, o servidor BERNARDO DA SILVA
+    ARAÚJO DE OLIVEIRA, em substituição à servidora CLARISSA RIPPEL,
+    nomeada mediante Portaria GP nº 1.516/2025 e alterada pela Portaria GP
+    nº 1.264/2025, para exercer o Cargo em Comissão de Diretor, lotado na
+    Secretaria Municipal de Administração.
+    """
+
+    subeventos = segmentar_sub_eventos(texto)
+
+    assert len(subeventos) == 1
+    assert "Secretaria Municipal de Administração" in subeventos[0]
+
+
+def test_referencia_interna_a_portaria_gp_com_numero_nao_cria_subevento():
+    texto = """
+    PORTARIA GP Nº 681/2026 – NOMEAR, a servidora ANA DA SILVA,
+    em substituição ao servidor BRUNO DA SILVA, nomeado anteriormente
+    mediante Portaria GP nº 140/2026, como responsável pelo acompanhamento
+    e fiscalização do Contrato nº 014.008.2025, firmado entre o Município
+    de Teresópolis através da Secretaria Municipal de Assistência Social e
+    Direitos Humanos e a Empresa XPTO Ltda.
+    """
+
+    subeventos = segmentar_sub_eventos(texto)
+
+    assert len(subeventos) == 1
+    assert (
+        "Secretaria Municipal de Assistência Social e Direitos Humanos"
+        in " ".join(subeventos[0].split())
+    )

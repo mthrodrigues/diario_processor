@@ -84,6 +84,8 @@ def extrair_agente_publico(texto):
 
         r"EXONERAR(?:\s*,?\s*nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s+do\s+Cargo",
 
+        r"DESIGNAR(?:\s*,?\s*nos\s+termos.*?,)?\s*([A-ZÀ-Ú\s'-]+?)\s*,?\s*matr[ií]cula",
+
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s*matr[ií]cula",
 
         r"(?:servidor|servidora)?\s*([A-ZÀ-Ú\s']+?)\s*,?\s*para exercer",
@@ -170,6 +172,85 @@ def extrair_participantes_cacs_fundeb(texto):
 
 
 def extrair_servidores_designados(texto):
+    # ---------- Primeiro, tentativa para DESIGNAR ----------
+    if re.search(r"\bDESIGNAR\b", texto, flags=re.IGNORECASE):
+
+        # Localiza o início da lista de servidores.
+        #
+        # Abrange os dois formatos reais investigados:
+        #
+        # 1) "... os servidores: Gean ... Mat. ..."
+        # 2) "... os servidores estáveis ... sob a presidência do primeiro:
+        #        I - Gean ... Mat. ..."
+        marcador_lista = re.search(
+            r"(?:"
+            r"\b(?:os|as)\s+(?:servidores?|funcionários?)\b[^:]*:"
+            r"|"
+            r"\bsob\s+a\s+presidência\b[^:]*:"
+            r")",
+            texto,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
+        if marcador_lista:
+            lista_texto = texto[marcador_lista.end():]
+
+            # Cada participante dos casos investigados termina em ". Mat."
+            padrao_designar = (
+                r"(?P<nome>"
+                r"(?:[IVXLCDM]+\s*[.\-]\s+)?"
+                r"[A-ZÀ-Ú][A-ZÀ-Ú\s\-\']*?"
+                r")\.\s*Mat\."
+            )
+
+            matches = re.finditer(
+                padrao_designar,
+                lista_texto,
+                flags=re.IGNORECASE,
+            )
+
+            participantes = []
+            nomes_vistos = set()
+
+            for match in matches:
+                nome = match.group("nome")
+
+                # Remove enumeração: I -, II -, III -, etc.
+                nome = re.sub(
+                    r"^[IVXLCDM]+\s*[.\-]\s+",
+                    "",
+                    nome,
+                    flags=re.IGNORECASE,
+                )
+
+                # Remove o "e " que antecede o último participante.
+                nome = re.sub(
+                    r"^\s*e\s+",
+                    "",
+                    nome,
+                    flags=re.IGNORECASE,
+                )
+
+                # Normaliza quebras de linha e espaços.
+                nome = re.sub(r"\s+", " ", nome).strip(" ,.-")
+
+                if len(nome.split()) < 2:
+                    continue
+
+                chave = nome.upper()
+
+                if chave not in nomes_vistos:
+                    nomes_vistos.add(chave)
+
+                    participantes.append({
+                        "tipo": PESSOA,
+                        "nome": nome,
+                    })
+
+            if participantes:
+                return participantes
+
+    # ---------- Fallback para a lógica existente (NOMEAR) ----------
     padrao = (
         r"NOMEAR(?:\s*,?\s+nos\s+termos.*?,)?\s*,?\s*"
         r"(?:as?\s+servidoras?|os?\s+servidores?|os?\s+funcionários?)\s+"
@@ -361,6 +442,8 @@ def extrair_orgao(texto):
         # contratual: primeiro as mais específicas
         # ================================================
 
+        r"\b(Corregedoria da Guarda Civil Municipal)\b",
+
         r"firmado entre o Município de Teresópolis através da\s+(Procuradoria Geral do Município)",
 
         r"através da\s+(Secretaria Municipal(?: de)? [A-ZÀ-Ú\s']+?)(?=,|\.| e o | e a | firmado | celebrado |$)",
@@ -445,33 +528,42 @@ def extrair_numero_portaria_gp(texto):
 
 def segmentar_sub_eventos(texto):
 
-    partes = re.split(
-        r"(PORTARIA\s+GP\s+N[º°]\s*\d+/\d+)",
-        texto,
-        flags=re.IGNORECASE
+    subeventos = []
+    atual = ""
+    cursor = 0
+
+    padrao_portaria = re.compile(
+        r"PORTARIA\s+GP\s+N[º°]\s*\d+/\d+",
+        flags=re.IGNORECASE,
+    )
+    padrao_referencia_interna = re.compile(
+        r"(?:"
+        r"nomead[oa](?:\s+anteriormente)?\s+mediante"
+        r"|alterad[oa]\s+pela"
+        r"|conforme"
+        r")\s*$",
+        flags=re.IGNORECASE,
     )
 
-    subeventos = []
+    for match in padrao_portaria.finditer(texto):
+        contexto_anterior = re.sub(
+            r"\s+",
+            " ",
+            texto[max(0, match.start() - 120):match.start()],
+        )
 
-    atual = ""
+        if padrao_referencia_interna.search(contexto_anterior):
+            continue
 
-    for parte in partes:
+        atual += texto[cursor:match.start()]
 
-        if re.search(
-            r"PORTARIA\s+GP\s+N[º°]",
-            parte,
-            re.IGNORECASE
-        ):
+        if atual.strip():
+            subeventos.append(atual.strip())
 
-            if atual.strip():
-                subeventos.append(atual.strip())
+        atual = match.group(0)
+        cursor = match.end()
 
-            atual = parte
-
-        else:
-
-            atual += " " + parte
-
+    atual += texto[cursor:]
     if atual.strip():
         subeventos.append(atual.strip())
 
