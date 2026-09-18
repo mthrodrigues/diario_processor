@@ -305,7 +305,40 @@ ADRs devem registrar decisões arquiteturais, alternativas consideradas, consequ
 
 ---
 
-## 14. Regra final para agentes
+## 14. Política obrigatória de idioma
+
+O idioma padrão do repositório e de todas as entregas de desenvolvimento é **português do Brasil (pt-BR)**.
+
+Essa regra se aplica obrigatoriamente a:
+
+- mensagens de commit;
+- títulos e descrições de Pull Requests;
+- títulos, descrições e comentários de Issues;
+- resumos de alterações e releases;
+- documentação nova ou alterada;
+- nomes de arquivos e diretórios novos;
+- nomes de recursos, funcionalidades e componentes novos, quando o domínio permitir;
+- textos de interface, mensagens de log, mensagens de erro e demais textos voltados a usuários ou operadores;
+- comentários de código quando forem necessários.
+
+Ao criar novos nomes, **priorize o português**. Evite introduzir inglês por hábito.
+
+Exceções aceitáveis:
+
+- nomes já definidos por bibliotecas, frameworks, APIs, protocolos ou serviços externos;
+- identificadores técnicos cujo nome em inglês seja exigido por uma interface externa;
+- termos técnicos universalmente estabelecidos quando traduzi-los prejudicar clareza ou compatibilidade;
+- nomes já existentes no código, que não devem ser renomeados apenas por preferência linguística.
+
+Não renomeie componentes existentes em inglês sem uma decisão explícita de refatoração.
+
+Quando houver uma escolha livre para uma nova implementação, prefira nomes em português que expressem claramente o domínio.
+
+**Toda subida ao GitHub deve possuir mensagem, título e resumo em português.**
+
+---
+
+## 15. Regra final para agentes
 
 A implementação real e a documentação atual do repositório têm precedência sobre suposições.
 
